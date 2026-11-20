@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,6 +12,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/router"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/crdt/pb"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/httpx"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
@@ -62,12 +62,13 @@ func (o Options) handleSync(e *core.RequestEvent) error {
 		})
 	}
 
-	session, ok := o.authenticateBudgetRoute(e)
-	if !ok {
+	// The body is protobuf, so the token only comes from the headers.
+	session := o.Auth.ResolveBudgetSession(e, "")
+	if session == nil {
 		return nil
 	}
 
-	file, ok := o.verifySyncFile(e, request.GetFileId(), session.apiKeyFileIDs)
+	file, ok := o.verifySyncFile(e, request.GetFileId(), session.APIKeyFileIDs)
 	if !ok {
 		return nil
 	}
@@ -138,12 +139,12 @@ func (o Options) verifySyncFile(e *core.RequestEvent, fileID string, apiKeyFileI
 
 // canAccessFile ports requireFileAccess: owner, server admin, or an explicit
 // grant.
-func (o Options) canAccessFile(e *core.RequestEvent, file *store.File, session *budgetSession) bool {
-	if session.apiKeyFileIDs == nil && (file.Owner == session.userID || o.Store.IsAdmin(session.userID)) {
+func (o Options) canAccessFile(e *core.RequestEvent, file *store.File, session *auth.Session) bool {
+	if file.Owner == session.UserID || o.Store.IsAdmin(session.UserID) {
 		return true
 	}
 
-	count, err := o.Store.CountUserAccess(file.ID, session.userID)
+	count, err := o.Store.CountUserAccess(file.ID, session.UserID)
 	if err != nil {
 		_ = httpx.Error(e)
 		return false
@@ -234,42 +235,4 @@ func contains(values []string, wanted string) bool {
 		}
 	}
 	return false
-}
-
-// budgetSession is the acting identity for a route that accepts API keys.
-type budgetSession struct {
-	userID string
-	// apiKeyFileIDs is nil for a normal session and non-nil (possibly empty)
-	// for an API key.
-	apiKeyFileIDs []string
-}
-
-// authenticateBudgetRoute is the Phase 4 stand-in for PocketBase auth. Tests
-// configure SyncTestToken/SyncTestUserID; with neither set the route answers
-// 401, as it must until Phase 5 replaces this with auth.Resolve.
-//
-// TODO(phase 5): delete this and call auth.ResolveBudgetSession.
-func (o Options) authenticateBudgetRoute(e *core.RequestEvent) (*budgetSession, bool) {
-	unauthorized := func() {
-		_ = httpx.FailDetails(e, http.StatusUnauthorized, "unauthorized", "token-not-found")
-	}
-
-	if o.SyncTestToken == "" || o.SyncTestUserID == "" {
-		unauthorized()
-		return nil, false
-	}
-
-	provided := e.Request.Header.Get("X-Actual-Token")
-	if subtle.ConstantTimeCompare([]byte(provided), []byte(o.SyncTestToken)) != 1 {
-		unauthorized()
-		return nil, false
-	}
-
-	// Tests act as any seeded user through this header.
-	userID := o.SyncTestUserID
-	if override := e.Request.Header.Get("X-Actual-Test-User"); override != "" {
-		userID = override
-	}
-
-	return &budgetSession{userID: userID}, true
 }

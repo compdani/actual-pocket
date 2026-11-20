@@ -15,6 +15,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/plugins/migratecmd"
 
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/routes"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
@@ -63,6 +64,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	// Collections are defined only in hand-written Go migrations.
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{Automigrate: false})
 
+	store := store.New(app)
+	auth.RegisterMaintenance(app, store)
+
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// Electron and Docker health checks wait for this exact line.
 		se.StartBannerFunc = func(_ string) {
@@ -81,8 +85,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 			Config:  cfg,
 			Version: Version,
 			Stdout:  stdout,
-			Store:   store.New(app),
+			Store:   store,
 			Sync:    syncEngine,
+			Auth:    auth.NewResolver(app, store),
 		})
 
 		return se.Next()

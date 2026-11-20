@@ -34,7 +34,7 @@ func TestSyncSuccess(t *testing.T) {
 	h := newHarness(t)
 	h.standardFile(t, "file-1", "group-1", "key-id", h.admin.Id)
 
-	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken)
+	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.adminToken)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
 	}
@@ -62,7 +62,7 @@ func TestSyncInvalidBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Header.Set("Content-Type", "application/actual-sync")
-	request.Header.Set("X-Actual-Token", testToken)
+	request.Header.Set("X-Actual-Token", h.adminToken)
 
 	recorder := httptest.NewRecorder()
 	h.handler.ServeHTTP(recorder, request)
@@ -79,7 +79,7 @@ func TestSyncSinceRequired(t *testing.T) {
 	h := newHarness(t)
 	h.standardFile(t, "file-1", "group-1", "key-id", h.admin.Id)
 
-	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", ""), testToken)
+	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", ""), h.adminToken)
 	if response.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", response.Code)
 	}
@@ -93,7 +93,7 @@ func TestSyncSinceRequired(t *testing.T) {
 func TestSyncFileNotFound(t *testing.T) {
 	h := newHarness(t)
 
-	response := h.postSync(t, syncRequest("missing-file", "group-1", "key-id", zeroSince), testToken)
+	response := h.postSync(t, syncRequest("missing-file", "group-1", "key-id", zeroSince), h.adminToken)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", response.Code)
 	}
@@ -108,7 +108,7 @@ func TestSyncFileNotFound(t *testing.T) {
 func TestSyncInvalidFileID(t *testing.T) {
 	h := newHarness(t)
 
-	response := h.postSync(t, syncRequest("../escape", "group-1", "key-id", zeroSince), testToken)
+	response := h.postSync(t, syncRequest("../escape", "group-1", "key-id", zeroSince), h.adminToken)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", response.Code)
 	}
@@ -203,7 +203,7 @@ func TestSyncValidation(t *testing.T) {
 				request = syncRequest(spec.ID, groupID, keyID, zeroSince)
 			}
 
-			response := h.postSync(t, request, testToken)
+			response := h.postSync(t, request, h.adminToken)
 			if response.Code != testCase.wantStatus {
 				t.Fatalf("status = %d, want %d (body %q)", response.Code, testCase.wantStatus, response.Body.String())
 			}
@@ -218,7 +218,7 @@ func TestSyncAccessDenied(t *testing.T) {
 	h := newHarness(t)
 	h.standardFile(t, "file-1", "group-1", "key-id", h.other.Id)
 
-	response := h.postSyncAs(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken, h.user.Id)
+	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.userToken)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", response.Code)
 	}
@@ -231,7 +231,7 @@ func TestSyncAdminCanSyncAnotherUsersFile(t *testing.T) {
 	h := newHarness(t)
 	h.standardFile(t, "file-1", "group-1", "key-id", h.other.Id)
 
-	response := h.postSyncAs(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken, h.admin.Id)
+	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.adminToken)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
 	}
@@ -252,7 +252,7 @@ func TestSyncSharedAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := h.postSyncAs(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken, h.user.Id)
+	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.userToken)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
 	}
@@ -279,7 +279,7 @@ func TestSyncRejectsBadTimestamps(t *testing.T) {
 				Content:   []byte("payload"),
 			}}
 
-			response := h.postSync(t, request, testToken)
+			response := h.postSync(t, request, h.adminToken)
 			if response.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400", response.Code)
 			}
@@ -288,7 +288,7 @@ func TestSyncRejectsBadTimestamps(t *testing.T) {
 			}
 
 			// Nothing was stored, so a retry fails the same way.
-			retry := h.postSync(t, request, testToken)
+			retry := h.postSync(t, request, h.adminToken)
 			if retry.Code != http.StatusBadRequest || retry.Body.String() != testCase.want {
 				t.Errorf("retry = %d %q, want 400 %q", retry.Code, retry.Body.String(), testCase.want)
 			}
@@ -304,7 +304,7 @@ func TestSyncClockDriftBoundary(t *testing.T) {
 	request.Messages = []*pb.MessageEnvelope{{
 		Timestamp: timestampFor(time.Now().Add(5 * time.Minute)),
 	}}
-	if response := h.postSync(t, request, testToken); response.Code != http.StatusOK {
+	if response := h.postSync(t, request, h.adminToken); response.Code != http.StatusOK {
 		t.Errorf("5 minutes ahead: status = %d, want 200 (%q)", response.Code, response.Body.String())
 	}
 
@@ -313,7 +313,7 @@ func TestSyncClockDriftBoundary(t *testing.T) {
 	request.Messages = []*pb.MessageEnvelope{{
 		Timestamp: timestampFor(time.Now().Add(5*time.Minute + time.Second)),
 	}}
-	if response := h.postSync(t, request, testToken); response.Code != http.StatusBadRequest {
+	if response := h.postSync(t, request, h.adminToken); response.Code != http.StatusBadRequest {
 		t.Errorf("5 minutes and a second ahead: status = %d, want 400", response.Code)
 	}
 }
@@ -329,7 +329,7 @@ func TestSyncReturnsMessagesNewerThanSince(t *testing.T) {
 	request := syncRequest("file-1", "group-1", "key-id", zeroSince)
 	request.Messages = []*pb.MessageEnvelope{first, second}
 
-	response := h.postSync(t, request, testToken)
+	response := h.postSync(t, request, h.adminToken)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
 	}
@@ -338,7 +338,7 @@ func TestSyncReturnsMessagesNewerThanSince(t *testing.T) {
 	}
 
 	// Since before both: both come back, ordered by timestamp.
-	response = h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken)
+	response = h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.adminToken)
 	decoded := decodeSyncResponse(t, response)
 	if len(decoded.GetMessages()) != 2 {
 		t.Fatalf("messages = %d, want 2", len(decoded.GetMessages()))
@@ -354,7 +354,7 @@ func TestSyncReturnsMessagesNewerThanSince(t *testing.T) {
 	}
 
 	// Since the first: only the second.
-	response = h.postSync(t, syncRequest("file-1", "group-1", "key-id", first.Timestamp), testToken)
+	response = h.postSync(t, syncRequest("file-1", "group-1", "key-id", first.Timestamp), h.adminToken)
 	if messages := decodeSyncResponse(t, response).GetMessages(); len(messages) != 1 || messages[0].GetTimestamp() != second.Timestamp {
 		t.Errorf("messages since the first = %v, want only the second", messages)
 	}
@@ -368,8 +368,8 @@ func TestSyncDuplicateDoesNotChangeTheMerkle(t *testing.T) {
 	request := syncRequest("file-1", "group-1", "key-id", zeroSince)
 	request.Messages = []*pb.MessageEnvelope{message}
 
-	first := decodeSyncResponse(t, h.postSync(t, request, testToken))
-	second := decodeSyncResponse(t, h.postSync(t, request, testToken))
+	first := decodeSyncResponse(t, h.postSync(t, request, h.adminToken))
+	second := decodeSyncResponse(t, h.postSync(t, request, h.adminToken))
 
 	if first.GetMerkle() != second.GetMerkle() {
 		t.Errorf("merkle changed on a duplicate:\n%s\n%s", first.GetMerkle(), second.GetMerkle())
@@ -386,7 +386,7 @@ func TestSyncInvalidGroupID(t *testing.T) {
 	// Node compares group ids as strings first, so a different (even invalid)
 	// group id is reported as a reset file. The engine's own group id check is
 	// covered by internal/syncdb.
-	response := h.postSync(t, syncRequest("file-1", "../escape", "key-id", zeroSince), testToken)
+	response := h.postSync(t, syncRequest("file-1", "../escape", "key-id", zeroSince), h.adminToken)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", response.Code)
 	}
@@ -398,7 +398,7 @@ func TestSyncInvalidGroupID(t *testing.T) {
 func TestSyncBodyLimit(t *testing.T) {
 	h := newHarnessWithConfig(t, func(cfg *config.Config) {
 		cfg.Upload.FileSizeSyncLimitMB = 1
-	})
+	}, true)
 	h.standardFile(t, "file-1", "group-1", "key-id", h.admin.Id)
 
 	request := syncRequest("file-1", "group-1", "key-id", zeroSince)
@@ -407,7 +407,7 @@ func TestSyncBodyLimit(t *testing.T) {
 		Content:   make([]byte, 2<<20),
 	}}
 
-	response := h.postSync(t, request, testToken)
+	response := h.postSync(t, request, h.adminToken)
 	if response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413 (body %q)", response.Code, response.Body.String())
 	}
@@ -426,11 +426,11 @@ func TestSyncPayloadRoundTrip(t *testing.T) {
 		Content:     content,
 	}}
 
-	if response := h.postSync(t, request, testToken); response.Code != http.StatusOK {
+	if response := h.postSync(t, request, h.adminToken); response.Code != http.StatusOK {
 		t.Fatalf("status = %d", response.Code)
 	}
 
-	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken)
+	response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.adminToken)
 	messages := decodeSyncResponse(t, response).GetMessages()
 	if len(messages) != 1 {
 		t.Fatalf("messages = %d, want 1", len(messages))

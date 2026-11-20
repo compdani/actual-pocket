@@ -91,7 +91,7 @@ func TestCrossImplementationMerkle(t *testing.T) {
 			KeyId:    keyID,
 			Since:    step.since,
 			Messages: step.messages,
-		}, testToken))
+		}, h.adminToken))
 
 		if nodeResponse.GetMerkle() != goResponse.GetMerkle() {
 			t.Fatalf("%s: merkle mismatch\n node %s\n   go %s", step.name, summariseMerkle(nodeResponse.GetMerkle()), summariseMerkle(goResponse.GetMerkle()))

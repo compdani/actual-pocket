@@ -12,17 +12,17 @@ import (
 
 	"ganigeorgiev.com/pocketbase/pocketbase"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tools/security"
+	"github.com/golang-jwt/jwt/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/crdt/pb"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/syncdb"
 	_ "github.com/compdani/actual-pocket/packages/sync-server-go/migrations"
 )
-
-// testToken is accepted by the Phase 4 /sync guard.
-const testToken = "test-token"
 
 // harness is a migrated PocketBase app plus the Actual routes bound to it.
 type harness struct {
@@ -36,15 +36,27 @@ type harness struct {
 	user     *core.Record
 	other    *core.Record
 	disabled *core.Record
+
+	adminToken    string
+	userToken     string
+	otherToken    string
+	disabledToken string
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 
-	return newHarnessWithConfig(t, nil)
+	return newHarnessWithConfig(t, nil, true)
 }
 
-func newHarnessWithConfig(t *testing.T, configure func(*config.Config)) *harness {
+// newEmptyHarness is a migrated app with no users, for the bootstrap tests.
+func newEmptyHarness(t *testing.T) *harness {
+	t.Helper()
+
+	return newHarnessWithConfig(t, nil, false)
+}
+
+func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUsers bool) *harness {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -87,18 +99,25 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config)) *harness
 		engine: engine,
 		config: cfg,
 	}
+	auth.RegisterMaintenance(app, h.store)
 
-	h.admin = h.createUser(t, "admin@example.com", "admin-password", "ADMIN", true, true)
-	h.user = h.createUser(t, "user@example.com", "user-password", "BASIC", true, false)
-	h.other = h.createUser(t, "other@example.com", "other-password", "BASIC", true, false)
-	h.disabled = h.createUser(t, "disabled@example.com", "disabled-password", "BASIC", false, false)
+	if withUsers {
+		h.admin = h.createUser(t, "admin@example.com", "admin-password", "ADMIN", true, true)
+		h.user = h.createUser(t, "user@example.com", "user-password", "BASIC", true, false)
+		h.other = h.createUser(t, "other@example.com", "other-password", "BASIC", true, false)
+		h.disabled = h.createUser(t, "disabled@example.com", "disabled-password", "BASIC", false, false)
+
+		h.adminToken = h.token(t, h.admin)
+		h.userToken = h.token(t, h.user)
+		h.otherToken = h.token(t, h.other)
+		h.disabledToken = h.token(t, h.disabled)
+	}
 
 	server := newTestServer(t, cfg, "1.2.3", func(options *Options) {
 		options.App = app
 		options.Store = h.store
 		options.Sync = engine
-		options.SyncTestToken = testToken
-		options.SyncTestUserID = h.admin.Id
+		options.Auth = auth.NewResolver(app, h.store)
 	})
 	h.handler = server.handler
 
@@ -126,6 +145,41 @@ func (h *harness) createUser(t *testing.T, email, password, role string, enabled
 	}
 
 	return record
+}
+
+// token issues a PocketBase auth token for the record, exactly like
+// /api/collections/users/auth-with-password would.
+func (h *harness) token(t *testing.T, record *core.Record) string {
+	t.Helper()
+
+	token, err := record.NewAuthToken()
+	if err != nil {
+		t.Fatalf("issue token for %s: %v", record.Id, err)
+	}
+
+	return token
+}
+
+// tokenWithDuration signs a token for the record with a custom lifetime.
+func (h *harness) tokenWithDuration(t *testing.T, record *core.Record, duration time.Duration) string {
+	t.Helper()
+
+	users, err := h.app.FindCollectionByNameOrId("users")
+	if err != nil {
+		t.Fatalf("find users: %v", err)
+	}
+
+	token, err := security.NewJWT(jwt.MapClaims{
+		core.TokenClaimType:         core.TokenTypeAuth,
+		core.TokenClaimId:           record.Id,
+		core.TokenClaimCollectionId: users.Id,
+		core.TokenClaimRefreshable:  true,
+	}, record.TokenKey()+users.AuthToken.Secret, duration)
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	return token
 }
 
 // fileSpec describes an actual_files row. Nil pointers mean the column is
@@ -208,14 +262,6 @@ func syncRequest(fileID, groupID, keyID, since string) *pb.SyncRequest {
 func (h *harness) postSync(t *testing.T, request *pb.SyncRequest, token string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	return h.postSyncAs(t, request, token, "")
-}
-
-// postSyncAs sends a protobuf sync request as a specific user (the Phase 4
-// test guard only).
-func (h *harness) postSyncAs(t *testing.T, request *pb.SyncRequest, token, userID string) *httptest.ResponseRecorder {
-	t.Helper()
-
 	body, err := proto.Marshal(request)
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
@@ -226,14 +272,43 @@ func (h *harness) postSyncAs(t *testing.T, request *pb.SyncRequest, token, userI
 	if token != "" {
 		httpRequest.Header.Set("X-Actual-Token", token)
 	}
-	if userID != "" {
-		httpRequest.Header.Set("X-Actual-Test-User", userID)
+
+	return h.do(httpRequest)
+}
+
+// do runs a request against the router.
+func (h *harness) do(request *http.Request) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	h.handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// postJSON posts a JSON body, like the web client does.
+func (h *harness) postJSON(t *testing.T, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
 	}
 
-	recorder := httptest.NewRecorder()
-	h.handler.ServeHTTP(recorder, httpRequest)
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(encoded))
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("X-Actual-Token", token)
+	}
 
-	return recorder
+	return h.do(request)
+}
+
+// getJSON issues a GET with an optional token.
+func (h *harness) getJSON(path, token string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	if token != "" {
+		request.Header.Set("X-Actual-Token", token)
+	}
+
+	return h.do(request)
 }
 
 // decodeSyncResponse parses a successful sync response.

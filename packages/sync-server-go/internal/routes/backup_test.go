@@ -59,7 +59,7 @@ func TestBackupHooksPauseSyncs(t *testing.T) {
 			syncDone := make(chan struct{})
 			go func() {
 				defer close(syncDone)
-				response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), testToken)
+				response := h.postSync(t, syncRequest("file-1", "group-1", "key-id", zeroSince), h.adminToken)
 				if response.Code != 200 {
 					t.Errorf("sync during backup = %d", response.Code)
 				}

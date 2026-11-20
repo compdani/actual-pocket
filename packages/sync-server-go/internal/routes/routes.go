@@ -11,6 +11,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/router"
 
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/httpx"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/ratelimit"
@@ -32,11 +33,8 @@ type Options struct {
 	Store *store.Store
 	// Sync is the per-group CRDT message log.
 	Sync *syncdb.Engine
-	// SyncTestToken and SyncTestUserID are a development-only guard for
-	// POST /sync/sync until Phase 5 adds PocketBase auth. When either is empty
-	// the route answers 401.
-	SyncTestToken  string
-	SyncTestUserID string
+	// Auth resolves the acting user for /sync and /account.
+	Auth *auth.Resolver
 }
 
 // Register binds every Actual route on the PocketBase router.
@@ -65,6 +63,7 @@ func Register(se *core.ServeEvent, opts Options) {
 
 	registerMeta(actual, cfg, opts.Version)
 	registerSync(actual, opts)
+	registerAccount(actual, opts)
 	registerStatic(actual, cfg)
 }
 
