@@ -416,6 +416,11 @@ func TestUsersAuthOptions(t *testing.T) {
 			t.Errorf("users is missing the built-in %s field", name)
 		}
 	}
+
+	// password_set distinguishes a chosen password from an OAuth2-only user.
+	if _, ok := users.Fields.GetByName("password_set").(*core.BoolField); !ok {
+		t.Error("users.password_set is missing or not a bool field")
+	}
 }
 
 func TestSettings(t *testing.T) {
@@ -500,7 +505,7 @@ func TestDownUpRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("users collection disappeared: %v", err)
 	}
-	for _, name := range []string{"role", "enabled", "owner"} {
+	for _, name := range []string{"role", "enabled", "owner", "password_set"} {
 		if users.Fields.GetByName(name) != nil {
 			t.Errorf("users still has %q after migrate down", name)
 		}

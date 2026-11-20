@@ -224,7 +224,7 @@ func (o Options) bootstrap(e *core.RequestEvent) error {
 		record.Set("verified", true)
 
 		// The password is validated when the record is saved.
-		record.SetPassword(body.Password)
+		auth.SetPassword(record, body.Password)
 
 		return txApp.Save(record)
 	})
@@ -313,11 +313,17 @@ func (o Options) changePassword(e *core.RequestEvent) error {
 		return nil
 	}
 
+	// An OAuth2-only user has a random password nobody knows; there is nothing
+	// to change.
+	if !session.Record.GetBool(auth.FieldNamePasswordSet) {
+		return httpx.Fail(e, http.StatusBadRequest, "no-password-method")
+	}
+
 	if !session.Record.ValidatePassword(body.CurrentPassword) {
 		return httpx.Fail(e, http.StatusBadRequest, "invalid-current-password")
 	}
 
-	session.Record.SetPassword(body.Password)
+	auth.SetPassword(session.Record, body.Password)
 
 	// Saving validates the new password and rotates tokenKey, which logs the
 	// user out everywhere...
@@ -389,12 +395,19 @@ func (o Options) validate(e *core.RequestEvent) error {
 			Permission:  session.Record.GetString("role"),
 			UserID:      session.UserID,
 			DisplayName: session.Record.GetString("name"),
-			// PocketBase tokens do not record the issue path; OAuth2 logins are
-			// distinguished in Phase 9 if it becomes necessary.
-			LoginMethod: "password",
+			LoginMethod: loginMethodFor(session.Record),
 			Prefs:       prefs,
 		},
 	})
+}
+
+// loginMethodFor reports how the user can log in: a user without a chosen
+// password was created through an OAuth2 provider.
+func loginMethodFor(record *core.Record) string {
+	if record.GetBool(auth.FieldNamePasswordSet) {
+		return "password"
+	}
+	return "openid"
 }
 
 // bindJSON parses an application/json body the way express.json() does: an

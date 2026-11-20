@@ -134,7 +134,7 @@ func (h *harness) createUser(t *testing.T, email, password, role string, enabled
 
 	record := core.NewRecord(users)
 	record.Set("email", email)
-	record.SetPassword(password)
+	auth.SetPassword(record, password)
 	record.Set("role", role)
 	record.Set("enabled", enabled)
 	record.Set("owner", owner)
@@ -158,6 +158,29 @@ func (h *harness) token(t *testing.T, record *core.Record) string {
 	}
 
 	return token
+}
+
+// createOAuthUser creates a user the way Phase 9's OAuth2 auto-provision will:
+// a random password nobody knows and password_set = false.
+func (h *harness) createOAuthUser(t *testing.T, email, role string) *core.Record {
+	t.Helper()
+
+	users, err := h.app.FindCollectionByNameOrId("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record := core.NewRecord(users)
+	record.Set("email", email)
+	auth.SetRandomPassword(record)
+	record.Set("role", role)
+	record.Set("enabled", true)
+	record.Set("verified", true)
+	if err := h.app.Save(record); err != nil {
+		t.Fatalf("create oauth user %s: %v", email, err)
+	}
+
+	return record
 }
 
 // tokenWithDuration signs a token for the record with a custom lifetime.

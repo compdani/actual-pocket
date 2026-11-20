@@ -12,6 +12,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
 )
 
@@ -72,6 +73,9 @@ func TestBootstrap(t *testing.T) {
 	}
 	if !record.ValidatePassword("correct-horse") {
 		t.Error("password was not set")
+	}
+	if !record.GetBool(auth.FieldNamePasswordSet) {
+		t.Error("bootstrap did not mark password_set")
 	}
 
 	// A second bootstrap is refused.
@@ -437,6 +441,40 @@ func TestServerPrefs(t *testing.T) {
 	invalid := h.postJSON(t, "/account/server-prefs", map[string]any{}, h.adminToken)
 	if invalid.Code != http.StatusBadRequest {
 		t.Errorf("missing prefs status = %d, want 400", invalid.Code)
+	}
+}
+
+func TestOAuthOnlyUser(t *testing.T) {
+	h := newHarness(t)
+	oauthUser := h.createOAuthUser(t, "oauth@example.com", "BASIC")
+	token := h.token(t, oauthUser)
+
+	// /account/validate reports the OAuth2 login method, so the client hides
+	// the change-password form.
+	response := h.getJSON("/account/validate", token)
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
+	}
+	if got := jsonBody(t, response)["data"].(map[string]any)["loginMethod"]; got != "openid" {
+		t.Errorf("loginMethod = %v, want openid", got)
+	}
+
+	// And changing the password is refused.
+	change := h.postJSON(t, "/account/change-password", map[string]string{
+		"currentPassword": "anything",
+		"password":        "new-user-password",
+	}, token)
+	if change.Code != http.StatusBadRequest {
+		t.Fatalf("change-password status = %d, body = %q", change.Code, change.Body.String())
+	}
+	if got := jsonBody(t, change)["reason"]; got != "no-password-method" {
+		t.Errorf("reason = %v, want no-password-method", got)
+	}
+
+	// A normal user still reports password.
+	passwordResponse := h.getJSON("/account/validate", h.userToken)
+	if got := jsonBody(t, passwordResponse)["data"].(map[string]any)["loginMethod"]; got != "password" {
+		t.Errorf("password user loginMethod = %v, want password", got)
 	}
 }
 
