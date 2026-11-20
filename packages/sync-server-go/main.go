@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/routes"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/migrations"
 )
 
 // Version is injected at build time:
@@ -40,6 +42,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stderr, "WARNING:", warning)
 	}
 	logStartup(stdout, cfg)
+
+	// The blob field's max size is fixed when its migration runs.
+	migrations.SetSyncEncryptedFileSizeLimitMB(cfg.Upload.SyncEncryptedFileSizeLimitMB)
+
+	// Group databases live inside pb_data so PocketBase backups cover them.
+	if err := os.MkdirAll(filepath.Join(cfg.PBDataDir, "actual_groups"), 0o700); err != nil {
+		return fmt.Errorf("create group database directory: %w", err)
+	}
 
 	os.Args = injectDefaultCommand(args, cfg)
 
