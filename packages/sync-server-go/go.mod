@@ -2,7 +2,10 @@ module github.com/compdani/actual-pocket/packages/sync-server-go
 
 go 1.27.0
 
-require ganigeorgiev.com/pocketbase/pocketbase v0.41.1
+require (
+	ganigeorgiev.com/pocketbase/pocketbase v0.41.1
+	google.golang.org/protobuf v1.36.12
+)
 
 require (
 	ganigeorgiev.com/fexpr v0.7.0 // indirect
