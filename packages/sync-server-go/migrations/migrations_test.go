@@ -372,6 +372,9 @@ func TestUsersAuthOptions(t *testing.T) {
 	if users.MFA.Enabled {
 		t.Error("MFA.Enabled = true, want false")
 	}
+	if users.AuthAlert.Enabled {
+		t.Error("AuthAlert.Enabled = true, want false: Node never emailed on new device logins")
+	}
 	if got := users.AuthToken.Duration; got != 31536000 {
 		t.Errorf("AuthToken.Duration = %d, want 31536000 (365 days)", got)
 	}
@@ -423,13 +426,28 @@ func TestSettings(t *testing.T) {
 	if !settings.RateLimits.Enabled {
 		t.Error("RateLimits.Enabled = false, want true")
 	}
-	rule, ok := settings.RateLimits.FindRateLimitRule([]string{"*:auth"})
+
+	// The password and OAuth2 endpoints get Node's 5-per-15-minutes budget.
+	for _, label := range []string{"*:authWithPassword", "*:authWithOAuth2"} {
+		rule, ok := settings.RateLimits.FindRateLimitRule([]string{label})
+		if !ok {
+			t.Errorf("no %s rate limit rule (rules: %v)", label, settings.RateLimits.Rules)
+			continue
+		}
+		if rule.MaxRequests != 5 || rule.Duration != 900 {
+			t.Errorf("%s rule = %d requests / %ds, want 5 / 900", label, rule.MaxRequests, rule.Duration)
+		}
+	}
+
+	// `*:auth` also covers auth-refresh, so it keeps PocketBase's default.
+	authRule, ok := settings.RateLimits.FindRateLimitRule([]string{"*:auth"})
 	if !ok {
 		t.Fatalf("no *:auth rate limit rule (rules: %v)", settings.RateLimits.Rules)
 	}
-	if rule.MaxRequests != 5 || rule.Duration != 900 {
-		t.Errorf("*:auth rule = %d requests / %ds, want 5 / 900", rule.MaxRequests, rule.Duration)
+	if authRule.MaxRequests != 2 || authRule.Duration != 3 {
+		t.Errorf("*:auth rule = %d requests / %ds, want PocketBase's default 2 / 3", authRule.MaxRequests, authRule.Duration)
 	}
+
 	// PocketBase's other default rules are kept.
 	for _, label := range []string{"*:create", "/api/batch", "/api/"} {
 		if _, ok := settings.RateLimits.FindRateLimitRule([]string{label}); !ok {

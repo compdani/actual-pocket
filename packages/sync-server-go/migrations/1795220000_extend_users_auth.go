@@ -39,6 +39,9 @@ func extendUsersUp(app core.App) error {
 	users.OTP.Enabled = false
 	users.MFA.Enabled = false
 
+	// Node never emailed users on a new device; keep PocketBase quiet too.
+	users.AuthAlert.Enabled = false
+
 	users.AuthToken.Duration = authTokenDuration
 
 	// OAuth2 stays enabled with no providers: the owner adds them in the
@@ -92,6 +95,7 @@ func extendUsersDown(app core.App) error {
 	users.MFA.Enabled = false
 	users.AuthToken.Duration = 432000
 	users.OAuth2.Enabled = false
+	users.AuthAlert.Enabled = true
 
 	if password, ok := users.Fields.GetByName("password").(*core.PasswordField); ok {
 		password.Min = 8

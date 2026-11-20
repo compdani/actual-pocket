@@ -15,6 +15,12 @@ const (
 	authRateLimitDuration    = 15 * 60
 )
 
+// authRateLimitLabels are the collection auth actions that check a password or
+// drive an OAuth2 login. `*:auth` (which also covers auth-with-password and
+// auth-with-oauth2, but importantly covers `auth-refresh` too) stays at
+// PocketBase's default so refreshing a token on app start is not throttled.
+var authRateLimitLabels = []string{"*:authWithPassword", "*:authWithOAuth2"}
+
 const (
 	backupCron        = "0 3 * * *"
 	backupCronMaxKeep = 7
@@ -28,7 +34,9 @@ func updateSettingsUp(app core.App) error {
 	settings := app.Settings()
 
 	settings.RateLimits.Enabled = true
-	settings.RateLimits.Rules = replaceRule(settings.RateLimits.Rules, "*:auth", authRateLimitMaxRequests, authRateLimitDuration)
+	for _, label := range authRateLimitLabels {
+		settings.RateLimits.Rules = upsertRule(settings.RateLimits.Rules, label, authRateLimitMaxRequests, authRateLimitDuration)
+	}
 
 	settings.Backups.Cron = backupCron
 	settings.Backups.CronMaxKeep = backupCronMaxKeep
@@ -41,7 +49,7 @@ func updateSettingsDown(app core.App) error {
 	settings := app.Settings()
 
 	settings.RateLimits.Enabled = false
-	settings.RateLimits.Rules = replaceRule(settings.RateLimits.Rules, "*:auth", 2, 3)
+	settings.RateLimits.Rules = removeRules(settings.RateLimits.Rules, authRateLimitLabels...)
 
 	settings.Backups.Cron = ""
 	settings.Backups.CronMaxKeep = 3
@@ -50,10 +58,10 @@ func updateSettingsDown(app core.App) error {
 	return app.Save(settings)
 }
 
-// replaceRule rewrites the matching rule in place, keeping PocketBase's other
-// defaults untouched.
-func replaceRule(rules []core.RateLimitRule, label string, maxRequests int, duration int64) []core.RateLimitRule {
-	out := make([]core.RateLimitRule, 0, len(rules))
+// upsertRule rewrites the matching rule in place, or appends it, leaving
+// PocketBase's other default rules untouched.
+func upsertRule(rules []core.RateLimitRule, label string, maxRequests int, duration int64) []core.RateLimitRule {
+	out := make([]core.RateLimitRule, 0, len(rules)+1)
 	found := false
 	for _, rule := range rules {
 		if rule.Label == label && rule.Audience == "" {
@@ -69,6 +77,23 @@ func replaceRule(rules []core.RateLimitRule, label string, maxRequests int, dura
 			MaxRequests: maxRequests,
 			Duration:    duration,
 		})
+	}
+	return out
+}
+
+// removeRules drops rules by label, for the down migration.
+func removeRules(rules []core.RateLimitRule, labels ...string) []core.RateLimitRule {
+	drop := map[string]bool{}
+	for _, label := range labels {
+		drop[label] = true
+	}
+
+	out := make([]core.RateLimitRule, 0, len(rules))
+	for _, rule := range rules {
+		if rule.Audience == "" && drop[rule.Label] {
+			continue
+		}
+		out = append(out, rule)
 	}
 	return out
 }
