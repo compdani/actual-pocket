@@ -17,6 +17,8 @@ import (
 
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/routes"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/syncdb"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/migrations"
 )
 
@@ -67,11 +69,20 @@ func run(args []string, stdout, stderr io.Writer) error {
 			fmt.Fprintf(stdout, "Listening on %s:%d...\n", cfg.Hostname, cfg.Port)
 		}
 
+		syncEngine, err := syncdb.New(filepath.Join(cfg.PBDataDir, "actual_groups"))
+		if err != nil {
+			return err
+		}
+		// A backup copies pb_data without locking our group files.
+		syncEngine.BindBackupHooks(app)
+
 		routes.Register(se, routes.Options{
 			App:     app,
 			Config:  cfg,
 			Version: Version,
 			Stdout:  stdout,
+			Store:   store.New(app),
+			Sync:    syncEngine,
 		})
 
 		return se.Next()

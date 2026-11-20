@@ -38,14 +38,25 @@ func Text(e *core.RequestEvent, status int, body string) error {
 
 // Error writes the Node server's unhandled-error response.
 func Error(e *core.RequestEvent) error {
-	return JSON(e, 500, errorBody{Status: "error", Reason: "internal-error"})
+	return Fail(e, 500, "internal-error")
 }
 
-// errorBody keeps Express's field order: JSON.stringify preserves the order of
-// the object literal, and Go maps are sorted.
-type errorBody struct {
-	Status string `json:"status"`
-	Reason string `json:"reason"`
+// ErrorBody is the Node JSON error envelope. Field order matches
+// JSON.stringify's insertion order for every response the Node server sends.
+type ErrorBody struct {
+	Status  string `json:"status"`
+	Reason  string `json:"reason,omitempty"`
+	Details string `json:"details,omitempty"`
+}
+
+// Fail writes {"status":"error","reason":reason}.
+func Fail(e *core.RequestEvent, status int, reason string) error {
+	return JSON(e, status, ErrorBody{Status: "error", Reason: reason})
+}
+
+// FailDetails writes {"status":"error","reason":reason,"details":details}.
+func FailDetails(e *core.RequestEvent, status int, reason, details string) error {
+	return JSON(e, status, ErrorBody{Status: "error", Reason: reason, Details: details})
 }
 
 // Marshal encodes v the way JSON.stringify does: compact, and without escaping

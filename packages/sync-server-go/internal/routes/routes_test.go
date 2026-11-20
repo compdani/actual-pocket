@@ -22,7 +22,7 @@ type testServer struct {
 	logs    *bytes.Buffer
 }
 
-func newTestServer(t *testing.T, cfg *config.Config, version string) *testServer {
+func newTestServer(t *testing.T, cfg *config.Config, version string, configure ...func(*Options)) *testServer {
 	t.Helper()
 
 	logs := &bytes.Buffer{}
@@ -30,11 +30,16 @@ func newTestServer(t *testing.T, cfg *config.Config, version string) *testServer
 		return &core.RequestEvent{Event: router.Event{Response: w, Request: req}}, nil
 	})
 
-	Register(&core.ServeEvent{Router: r}, Options{
+	options := Options{
 		Config:  cfg,
 		Version: version,
 		Stdout:  logs,
-	})
+	}
+	for _, apply := range configure {
+		apply(&options)
+	}
+
+	Register(&core.ServeEvent{Router: r}, options)
 
 	mux, err := r.BuildMux()
 	if err != nil {

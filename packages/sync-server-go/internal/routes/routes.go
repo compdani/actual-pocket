@@ -14,6 +14,8 @@ import (
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/httpx"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/ratelimit"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/syncdb"
 )
 
 // Options configures Register.
@@ -26,6 +28,15 @@ type Options struct {
 	Version string
 	// Stdout receives the request log and startup lines. Defaults to os.Stdout.
 	Stdout io.Writer
+	// Store reads the Actual collections.
+	Store *store.Store
+	// Sync is the per-group CRDT message log.
+	Sync *syncdb.Engine
+	// SyncTestToken and SyncTestUserID are a development-only guard for
+	// POST /sync/sync until Phase 5 adds PocketBase auth. When either is empty
+	// the route answers 401.
+	SyncTestToken  string
+	SyncTestUserID string
 }
 
 // Register binds every Actual route on the PocketBase router.
@@ -53,6 +64,7 @@ func Register(se *core.ServeEvent, opts Options) {
 	actual.Bind(limiter.Handler())
 
 	registerMeta(actual, cfg, opts.Version)
+	registerSync(actual, opts)
 	registerStatic(actual, cfg)
 }
 
