@@ -153,8 +153,8 @@ func (p *simplefinProvider) accounts(e *core.RequestEvent) error {
 	}
 
 	return respond(e, struct {
-		Accounts []simplefinAccount `json:"accounts"`
-	}{Accounts: results.Accounts})
+		Accounts []json.RawMessage `json:"accounts"`
+	}{Accounts: results.RawAccounts})
 }
 
 type simplefinTransactionsRequest struct {
@@ -273,8 +273,9 @@ type simplefinResults struct {
 	Accounts []simplefinAccount `json:"accounts"`
 	SFErrors []string           `json:"errors"`
 
-	Errors   map[string][]simplefinProviderError
-	HasError bool
+	RawAccounts []json.RawMessage `json:"-"`
+	Errors      map[string][]simplefinProviderError
+	HasError    bool
 }
 
 type simplefinBalance struct {
@@ -560,7 +561,7 @@ func (p *simplefinProvider) getTransactions(accessKey string, accounts []string,
 	if startDate.IsZero() {
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	}
-	endDate := time.Date(startDate.Year(), startDate.Month()+1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 	return p.getAccounts(accessKey, accounts, startDate, endDate, false)
 }
 
@@ -643,6 +644,16 @@ func (p *simplefinProvider) getAccounts(accessKey string, accounts []string, sta
 	}
 
 	results := &simplefinResults{}
+	if noTransactions {
+		var raw struct {
+			Accounts []json.RawMessage `json:"accounts"`
+		}
+		if err := json.Unmarshal(body, &raw); err != nil {
+			return nil, err
+		}
+		results.RawAccounts = raw.Accounts
+		return results, nil
+	}
 	if err := json.Unmarshal(body, results); err != nil {
 		return nil, err
 	}

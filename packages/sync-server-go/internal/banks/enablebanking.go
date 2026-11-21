@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -45,8 +47,12 @@ type enableBankingProvider struct {
 	client *http.Client
 
 	mu        sync.Mutex
-	completed map[string]any
+	completed map[string]*enableBankingCompletion
 	pending   map[string]chan any
+}
+
+type enableBankingCompletion struct {
+	result any
 }
 
 type enableBankingError struct {
@@ -61,7 +67,7 @@ func registerEnableBanking(actual *router.RouterGroup[*core.RequestEvent], opts 
 	provider := &enableBankingProvider{
 		opts:      opts,
 		client:    &http.Client{Timeout: 60 * time.Second},
-		completed: map[string]any{},
+		completed: map[string]*enableBankingCompletion{},
 		pending:   map[string]chan any{},
 	}
 
@@ -331,7 +337,7 @@ func (p *enableBankingProvider) startAuth(e *core.RequestEvent) error {
 		"psu_type": psuType,
 	}
 
-	raw, err := p.request(http.MethodPost, "/auth", payload, "", psuHeaders(e))
+	raw, err := p.request(http.MethodPost, "/auth", payload, "", p.psuHeaders(e))
 	if err != nil {
 		return respond(e, struct {
 			Error string `json:"error"`
@@ -361,7 +367,7 @@ func (p *enableBankingProvider) authCallback(e *core.RequestEvent) error {
 		return httpx.Text(e, http.StatusBadRequest, "<html><body><p>Authorization failed: missing state parameter.</p></body></html>")
 	}
 
-	result, err := p.sessionResult(code, psuHeaders(e))
+	result, err := p.sessionResult(code, p.psuHeaders(e))
 	if err != nil {
 		p.finishAuth(state, map[string]any{"error": err.Error()})
 		return httpx.Text(e, http.StatusInternalServerError,
@@ -391,7 +397,7 @@ func (p *enableBankingProvider) completeAuth(e *core.RequestEvent) error {
 		}{"INVALID_INPUT", "Missing code"})
 	}
 
-	result, err := p.sessionResult(body.Code, psuHeaders(e))
+	result, err := p.sessionResult(body.Code, p.psuHeaders(e))
 	if err != nil {
 		errorResult := map[string]any{"error": err.Error()}
 		if body.State != "" {
@@ -423,27 +429,35 @@ func (p *enableBankingProvider) pollAuth(e *core.RequestEvent) error {
 	}
 
 	p.mu.Lock()
-	if result, ok := p.completed[body.State]; ok {
+	if completed, ok := p.completed[body.State]; ok {
 		delete(p.completed, body.State)
 		p.mu.Unlock()
-		return respond(e, result)
+		return respond(e, completed.result)
+	}
+
+	if previous := p.pending[body.State]; previous != nil {
+		previous <- map[string]any{"error": "Poll superseded"}
 	}
 	wait := make(chan any, 1)
 	p.pending[body.State] = wait
 	p.mu.Unlock()
 
+	defer func() {
+		p.mu.Lock()
+		if p.pending[body.State] == wait {
+			delete(p.pending, body.State)
+		}
+		p.mu.Unlock()
+	}()
+
+	timer := time.NewTimer(5 * time.Minute)
+	defer timer.Stop()
 	select {
 	case result := <-wait:
 		return respond(e, result)
-	case <-time.After(5 * time.Minute):
-		p.mu.Lock()
-		delete(p.pending, body.State)
-		p.mu.Unlock()
+	case <-timer.C:
 		return respond(e, map[string]any{"error": "Polling timed out"})
 	case <-e.Request.Context().Done():
-		p.mu.Lock()
-		delete(p.pending, body.State)
-		p.mu.Unlock()
 		return nil
 	}
 }
@@ -451,17 +465,21 @@ func (p *enableBankingProvider) pollAuth(e *core.RequestEvent) error {
 func (p *enableBankingProvider) finishAuth(state string, result any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if wait, ok := p.pending[state]; ok {
-		wait <- result
-		delete(p.pending, state)
-		return
-	}
-	p.completed[state] = result
+
+	completed := &enableBankingCompletion{result: result}
+	p.completed[state] = completed
 	time.AfterFunc(30*time.Second, func() {
 		p.mu.Lock()
-		delete(p.completed, state)
+		if p.completed[state] == completed {
+			delete(p.completed, state)
+		}
 		p.mu.Unlock()
 	})
+
+	if wait := p.pending[state]; wait != nil {
+		wait <- result
+		delete(p.pending, state)
+	}
 }
 
 func (p *enableBankingProvider) sessionResult(code string, headers map[string]string) (map[string]any, error) {
@@ -549,12 +567,14 @@ func (p *enableBankingProvider) transactions(e *core.RequestEvent) error {
 	switch value := body.StartDate.(type) {
 	case string:
 		dateFrom = value
+	case float64:
+		dateFrom = time.UnixMilli(int64(value)).UTC().Format("2006-01-02")
 	default:
 		dateFrom = fmt.Sprint(value)
 	}
 	dateTo := time.Now().UTC().Format("2006-01-02")
 
-	headers := dataAccessPSUHeaders(body.ASPSPName, psuHeaders(e))
+	headers := dataAccessPSUHeaders(body.ASPSPName, p.psuHeaders(e))
 	balances := []enableBankingNormalizedBalance{}
 	balanceRaw, err := p.request(http.MethodGet, "/accounts/"+url.PathEscape(body.AccountID)+"/balances", nil, "", headers)
 	if err == nil {
@@ -658,9 +678,13 @@ func (p *enableBankingProvider) enableBankingWireError(e *core.RequestEvent, err
 	}{wireType, bankError.ErrorCode})
 }
 
-func psuHeaders(e *core.RequestEvent) map[string]string {
-	ip := httpx.ClientIP(e.Request, nil)
-	if ip == "" || ssrf.IsBlockedHost(ip, ssrf.Options{}) {
+func (p *enableBankingProvider) psuHeaders(e *core.RequestEvent) map[string]string {
+	addr, err := netip.ParseAddr(httpx.ClientIP(e.Request, p.opts.Config.TrustedProxies))
+	if err != nil {
+		return nil
+	}
+	ip := addr.Unmap().String()
+	if ssrf.IsBlockedHost(ip, ssrf.Options{}) {
 		return nil
 	}
 	headers := map[string]string{"Psu-Ip-Address": ip}
@@ -879,14 +903,7 @@ func normalizeEnableBankingTransactions(transactions []enableBankingTransaction)
 			if normalized[index].TransactionID != "" || normalized[index].Booked != booked || !isImportableEnableBankingTransaction(normalized[index]) {
 				continue
 			}
-			content, _ := json.Marshal([]any{
-				firstNonEmpty(normalized[index].ValueDate, normalized[index].BookingDate),
-				normalized[index].TransactionAmount.Amount,
-				normalized[index].TransactionAmount.Currency,
-				booked,
-				normalized[index].PayeeName,
-			})
-			base := "derived-" + hashPrefix(string(content), 32)
+			base := deriveEnableBankingID(transactions[index])
 			count := counts[base]
 			counts[base] = count + 1
 			if count == 0 {
@@ -898,6 +915,30 @@ func normalizeEnableBankingTransactions(transactions []enableBankingTransaction)
 	}
 
 	return normalized
+}
+
+func deriveEnableBankingID(tx enableBankingTransaction) string {
+	var creditor, debtor string
+	if tx.Creditor != nil {
+		creditor = tx.Creditor.Name
+	}
+	if tx.Debtor != nil {
+		debtor = tx.Debtor.Name
+	}
+
+	// Match JSON.stringify on the raw fields used by the Node server. The
+	// v2 encoder leaves HTML and Unicode line separators unescaped and
+	// encodes a nil remittance slice as [].
+	content, _ := jsonv2.Marshal([]any{
+		firstNonEmpty(tx.TransactionDate, tx.ValueDate, tx.BookingDate),
+		tx.TransactionAmount.Amount,
+		tx.TransactionAmount.Currency,
+		tx.CreditDebitIndicator,
+		creditor,
+		debtor,
+		tx.RemittanceInformation,
+	})
+	return "derived-" + hashPrefix(string(content), 32)
 }
 
 func firstNonEmpty(values ...string) string {

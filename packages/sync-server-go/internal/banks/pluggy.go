@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -39,14 +38,14 @@ type pluggyProvider struct {
 	client *http.Client
 
 	mu     sync.Mutex
-	tokens map[string]string
+	tokens map[pluggyCredentials]string
 }
 
 func registerPluggy(actual *router.RouterGroup[*core.RequestEvent], opts Options) {
 	provider := &pluggyProvider{
 		opts:   opts,
 		client: &http.Client{Timeout: 60 * time.Second},
-		tokens: map[string]string{},
+		tokens: map[pluggyCredentials]string{},
 	}
 
 	actual.POST("/pluggyai/status", provider.status)
@@ -111,19 +110,21 @@ func (p *pluggyProvider) status(e *core.RequestEvent) error {
 	return respond(e, pluggyStatusData{Configured: source != "", Source: sourceValue})
 }
 
-func (p *pluggyProvider) apiKey(fileID string) (string, error) {
-	clientID, _, _ := p.opts.Store.Secret(pluggyClientIDSecret, fileID)
-	clientSecret, _, _ := p.opts.Store.Secret(pluggyClientSecretSecret, fileID)
-	cacheKey := clientID + "\x00" + clientSecret
+type pluggyCredentials struct {
+	clientID     string
+	clientSecret string
+}
+
+func (p *pluggyProvider) apiKey(credentials pluggyCredentials) (string, error) {
 
 	p.mu.Lock()
-	if token := p.tokens[cacheKey]; token != "" {
+	if token := p.tokens[credentials]; token != "" {
 		p.mu.Unlock()
 		return token, nil
 	}
 	p.mu.Unlock()
 
-	body, _ := json.Marshal(map[string]string{"clientId": clientID, "clientSecret": clientSecret})
+	body, _ := json.Marshal(map[string]string{"clientId": credentials.clientID, "clientSecret": credentials.clientSecret})
 	request, err := http.NewRequest(http.MethodPost, pluggyBaseURL+"/auth", strings.NewReader(string(body)))
 	if err != nil {
 		return "", err
@@ -145,30 +146,52 @@ func (p *pluggyProvider) apiKey(fileID string) (string, error) {
 	}
 
 	p.mu.Lock()
-	p.tokens[cacheKey] = decoded.APIKey
+	p.tokens[credentials] = decoded.APIKey
 	p.mu.Unlock()
 	return decoded.APIKey, nil
 }
 
 func (p *pluggyProvider) request(fileID, path string) ([]byte, error) {
-	apiKey, err := p.apiKey(fileID)
+	clientID, _, err := p.opts.Store.Secret(pluggyClientIDSecret, fileID)
 	if err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequest(http.MethodGet, pluggyBaseURL+path, nil)
+	clientSecret, _, err := p.opts.Store.Secret(pluggyClientSecretSecret, fileID)
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("X-API-KEY", apiKey)
-	response, err := p.client.Do(request)
-	if err != nil {
-		return nil, err
+	credentials := pluggyCredentials{clientID: clientID, clientSecret: clientSecret}
+
+	for range 2 {
+		apiKey, err := p.apiKey(credentials)
+		if err != nil {
+			return nil, err
+		}
+		request, err := http.NewRequest(http.MethodGet, pluggyBaseURL+path, nil)
+		if err != nil {
+			return nil, err
+		}
+		request.Header.Set("X-API-KEY", apiKey)
+		response, err := p.client.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		if response.StatusCode == http.StatusUnauthorized {
+			response.Body.Close()
+			p.mu.Lock()
+			if p.tokens[credentials] == apiKey {
+				delete(p.tokens, credentials)
+			}
+			p.mu.Unlock()
+			continue
+		}
+		defer response.Body.Close()
+		if response.StatusCode >= 400 {
+			return nil, fmt.Errorf("pluggy request failed with HTTP %d", response.StatusCode)
+		}
+		return io.ReadAll(response.Body)
 	}
-	defer response.Body.Close()
-	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("pluggy request failed with HTTP %d", response.StatusCode)
-	}
-	return io.ReadAll(response.Body)
+	return nil, fmt.Errorf("pluggy request failed with HTTP %d", http.StatusUnauthorized)
 }
 
 func (p *pluggyProvider) accounts(e *core.RequestEvent) error {
@@ -319,7 +342,7 @@ func (p *pluggyProvider) transactions(e *core.RequestEvent) error {
 		normalized["notes"] = notes
 
 		amount := numberValue(transaction["amountInAccountCurrency"])
-		if _, ok := transaction["amountInAccountCurrency"]; !ok {
+		if transaction["amountInAccountCurrency"] == nil {
 			amount = numberValue(transaction["amount"])
 		}
 		if accountType == "CREDIT" {
@@ -369,28 +392,35 @@ func (p *pluggyProvider) transactions(e *core.RequestEvent) error {
 
 func (p *pluggyProvider) fetchAllTransactions(fileID, accountID, dateFrom string) ([]map[string]any, error) {
 	result := []map[string]any{}
-	page := 1
+	query := url.Values{"accountId": {accountID}, "dateFrom": {dateFrom}}
+	seen := map[string]bool{}
 	for {
-		path := "/accounts/" + url.PathEscape(accountID) + "/transactions?dateFrom=" + url.QueryEscape(dateFrom) + "&page=" + strconv.Itoa(page)
-		raw, err := p.request(fileID, path)
+		raw, err := p.request(fileID, "/v2/transactions?"+query.Encode())
 		if err != nil {
 			return nil, err
 		}
-		var decoded struct {
-			Results    []map[string]any `json:"results"`
-			Total      int              `json:"total"`
-			TotalPages int              `json:"totalPages"`
+		var page struct {
+			Results []map[string]any `json:"results"`
+			Next    string           `json:"next"`
 		}
-		if err := json.Unmarshal(raw, &decoded); err != nil {
+		if err := json.Unmarshal(raw, &page); err != nil {
 			return nil, err
 		}
-		result = append(result, decoded.Results...)
-		if len(decoded.Results) == 0 || page >= decoded.TotalPages || decoded.TotalPages == 0 {
-			break
+		result = append(result, page.Results...)
+		next, err := url.Parse(page.Next)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Pluggy pagination link: %w", err)
 		}
-		page++
+		after := next.Query().Get("after")
+		if after == "" {
+			return result, nil
+		}
+		if seen[after] {
+			return nil, fmt.Errorf("repeated Pluggy pagination cursor")
+		}
+		seen[after] = true
+		query.Set("after", after)
 	}
-	return result, nil
 }
 
 func pluggyPayeeName(transaction map[string]any) string {

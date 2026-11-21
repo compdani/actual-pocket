@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,11 +29,18 @@ const pluggyTransactionsFixture = `{
       "description": "Coffee",
       "descriptionRaw": "Coffee Shop",
       "amount": -10.5,
+      "amountInAccountCurrency": null,
       "currencyCode": "USD",
       "status": "POSTED",
       "type": "DEBIT",
       "merchant": {"name": "Coffee Shop"}
-    },
+    }
+  ],
+  "next": "/v2/transactions?accountId=account-1&after=next%2Fpage"
+}`
+
+const pluggySecondPageFixture = `{
+  "results": [
     {
       "id": "tx-2",
       "date": "2026-03-02T00:00:00.000Z",
@@ -42,16 +50,16 @@ const pluggyTransactionsFixture = `{
       "status": "PENDING"
     }
   ],
-  "total": 2,
-  "totalPages": 1
+  "next": null
 }`
 
 type fakePluggy struct {
 	server *httptest.Server
 
-	mu        sync.Mutex
-	apiKeys   []string
-	authCalls int
+	mu             sync.Mutex
+	apiKeys        []string
+	authCalls      int
+	rejectFirstKey bool
 }
 
 func newFakePluggy(t *testing.T) *fakePluggy {
@@ -61,17 +69,36 @@ func newFakePluggy(t *testing.T) *fakePluggy {
 	mux.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		fake.authCalls++
+		call := fake.authCalls
 		fake.mu.Unlock()
-		_, _ = w.Write([]byte(`{"apiKey":"pluggy-key"}`))
+		_, _ = fmt.Fprintf(w, `{"apiKey":"pluggy-key-%d"}`, call)
 	})
 	mux.HandleFunc("/accounts", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
-		fake.apiKeys = append(fake.apiKeys, r.Header.Get("X-API-KEY"))
+		key := r.Header.Get("X-API-KEY")
+		fake.apiKeys = append(fake.apiKeys, key)
+		reject := fake.rejectFirstKey && key == "pluggy-key-1"
 		fake.mu.Unlock()
+		if reject {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		_, _ = w.Write([]byte(`{"results":[` + pluggyAccountFixture + `],"total":1}`))
 	})
-	mux.HandleFunc("/accounts/account-1/transactions", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(pluggyTransactionsFixture))
+	mux.HandleFunc("/v2/transactions", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("accountId") != "account-1" || query.Get("dateFrom") == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		switch query.Get("after") {
+		case "":
+			_, _ = w.Write([]byte(pluggyTransactionsFixture))
+		case "next/page":
+			_, _ = w.Write([]byte(pluggySecondPageFixture))
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+		}
 	})
 	mux.HandleFunc("/accounts/account-1", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
@@ -120,8 +147,8 @@ func TestPluggyStatusAndTransactions(t *testing.T) {
 		t.Fatalf("transactions = %d, body = %q", response.Code, response.Body.String())
 	}
 	data = jsonBody(t, response)["data"].(map[string]any)
-	if data["startingBalance"].(float64) != 10025 {
-		t.Errorf("startingBalance = %v", data["startingBalance"])
+	if data["startingBalance"] != float64(10025) {
+		t.Fatalf("transactions response = %v", data)
 	}
 	transactions := data["transactions"].(map[string]any)
 	all := transactions["all"].([]any)
@@ -139,7 +166,7 @@ func TestPluggyStatusAndTransactions(t *testing.T) {
 	if fake.authCalls != 1 {
 		t.Errorf("auth calls = %d, want 1 (cached)", fake.authCalls)
 	}
-	if len(fake.apiKeys) == 0 || fake.apiKeys[0] != "pluggy-key" {
+	if len(fake.apiKeys) == 0 || fake.apiKeys[0] != "pluggy-key-1" {
 		t.Errorf("api key header = %v", fake.apiKeys)
 	}
 }
@@ -212,5 +239,23 @@ func TestPluggyRejectsAccountOutsideItems(t *testing.T) {
 	}
 	if fake.authCalls == 0 {
 		t.Error("expected the fake Pluggy service to be used")
+	}
+}
+
+func TestPluggyRenewsRejectedAPIKey(t *testing.T) {
+	h, fake := newPluggyHarness(t)
+	response := h.postJSON(t, "/pluggyai/accounts", nil, h.userToken)
+	if data := jsonBody(t, response)["data"].(map[string]any); data["accounts"] == nil {
+		t.Fatalf("initial fetch = %v", data)
+	}
+	fake.mu.Lock()
+	fake.rejectFirstKey = true
+	fake.mu.Unlock()
+	response = h.postJSON(t, "/pluggyai/accounts", nil, h.userToken)
+	if data := jsonBody(t, response)["data"].(map[string]any); data["accounts"] == nil {
+		t.Errorf("fetch after token rejection = %v", data)
+	}
+	if fake.authCalls != 2 {
+		t.Errorf("auth calls = %d, want 2", fake.authCalls)
 	}
 }

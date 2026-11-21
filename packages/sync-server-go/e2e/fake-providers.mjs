@@ -150,7 +150,11 @@ start('pluggyai', basePort + 3, (req, res) => {
     });
     return;
   }
-  if (req.url.startsWith('/accounts/pluggy-account-1/transactions')) {
+  const pluggyURL = new URL(req.url, 'http://localhost');
+  if (
+    pluggyURL.pathname === '/v2/transactions' &&
+    pluggyURL.searchParams.get('accountId') === 'pluggy-account-1'
+  ) {
     json(res, 200, {
       results: [
         {
@@ -165,8 +169,7 @@ start('pluggyai', basePort + 3, (req, res) => {
           merchant: { name: 'Pluggy Merchant' },
         },
       ],
-      total: 1,
-      totalPages: 1,
+      next: null,
     });
     return;
   }

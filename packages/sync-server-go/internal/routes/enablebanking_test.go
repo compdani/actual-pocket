@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -8,13 +9,16 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/banks"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 )
 
 const enableBankingSessionFixture = `{
@@ -72,6 +76,8 @@ type fakeEnableBanking struct {
 	transactionsStatus int
 	authBody           map[string]any
 	sessionCalls       int
+	transactionDate    string
+	psuIP              string
 }
 
 func newFakeEnableBanking(t *testing.T) *fakeEnableBanking {
@@ -114,6 +120,8 @@ func newFakeEnableBanking(t *testing.T) *fakeEnableBanking {
 			return
 		}
 		fake.mu.Lock()
+		fake.transactionDate = r.URL.Query().Get("date_from")
+		fake.psuIP = r.Header.Get("Psu-Ip-Address")
 		status := fake.transactionsStatus
 		fake.mu.Unlock()
 		if status != 200 {
@@ -134,13 +142,17 @@ func jsonDecode(r *http.Request, dst any) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
-func newEnableBankingHarness(t *testing.T) (*harness, *fakeEnableBanking) {
+func newEnableBankingHarness(t *testing.T, configure ...func(*config.Config)) (*harness, *fakeEnableBanking) {
 	t.Helper()
 	fake := newFakeEnableBanking(t)
 	restore := banks.SetEnableBankingBaseURLForTest(fake.server.URL)
 	t.Cleanup(restore)
 
-	h := newHarness(t)
+	h := newHarnessWithConfig(t, func(cfg *config.Config) {
+		for _, apply := range configure {
+			apply(cfg)
+		}
+	}, true)
 	if err := h.store.SetSecret("enablebanking_applicationId", "", "app-id"); err != nil {
 		t.Fatal(err)
 	}
@@ -264,5 +276,84 @@ func TestEnableBankingConfigurationFailure(t *testing.T) {
 
 	if response := h.postJSON(t, "/enablebanking/configure", map[string]any{}, h.adminToken); response.Code != 200 {
 		t.Errorf("missing input = %d", response.Code)
+	}
+}
+
+func TestEnableBankingNumericDateAndTrustedPSUAddress(t *testing.T) {
+	h, fake := newEnableBankingHarness(t, func(cfg *config.Config) {
+		cfg.TrustedProxies = []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")}
+	})
+	date := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	payload, err := json.Marshal(map[string]any{"accountId": "account-1", "startDate": date.UnixMilli()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/enablebanking/transactions", strings.NewReader(string(payload)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Actual-Token", h.userToken)
+	request.Header.Set("X-Forwarded-For", "::ffff:8.8.8.8")
+	request.RemoteAddr = "192.0.2.10:12345"
+	if response := h.do(request); response.Code != http.StatusOK {
+		t.Fatalf("request = %d %s", response.Code, response.Body)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.transactionDate != "2026-03-01" || fake.psuIP != "8.8.8.8" {
+		t.Errorf("forwarded date = %q, PSU IP = %q", fake.transactionDate, fake.psuIP)
+	}
+}
+
+type pollTestContext struct {
+	context.Context
+	reachedWait chan struct{}
+	once        sync.Once
+}
+
+func (c *pollTestContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.reachedWait) })
+	return c.Context.Done()
+}
+
+func TestEnableBankingSupersededPollKeepsReplacement(t *testing.T) {
+	h, _ := newEnableBankingHarness(t)
+	const state = "shared-state"
+
+	startPoll := func() (<-chan *httptest.ResponseRecorder, context.CancelFunc) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		t.Cleanup(cancel)
+		watch := &pollTestContext{Context: ctx, reachedWait: make(chan struct{})}
+		request := httptest.NewRequest(http.MethodPost, "/enablebanking/poll-auth", strings.NewReader(`{"state":"shared-state"}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-Actual-Token", h.userToken)
+		done := make(chan *httptest.ResponseRecorder, 1)
+		go func() { done <- h.do(request.WithContext(watch)) }()
+		select {
+		case <-watch.reachedWait:
+		case <-ctx.Done():
+			t.Error("poll did not enter its wait")
+		}
+		return done, cancel
+	}
+
+	first, cancelFirst := startPoll()
+	second, _ := startPoll()
+	select {
+	case response := <-first:
+		if data := jsonBody(t, response)["data"].(map[string]any); data["error"] != "Poll superseded" {
+			t.Errorf("first poll = %v", data)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("first poll was not notified that it was superseded")
+		cancelFirst()
+		<-first
+	}
+
+	response := h.postJSON(t, "/enablebanking/complete-auth", map[string]string{"code": "abc", "state": state}, h.userToken)
+	if response.Code != http.StatusOK {
+		t.Errorf("complete-auth = %d %s", response.Code, response.Body)
+	}
+	response = <-second
+	if result := jsonBody(t, response)["data"].(map[string]any); result["session_id"] != "session-1" {
+		t.Errorf("replacement poll = %v", result)
 	}
 }

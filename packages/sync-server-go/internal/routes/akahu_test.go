@@ -18,6 +18,7 @@ type fakeAkahu struct {
 	startQueries []string
 	refreshCalls int
 	stale        bool
+	noCurrency   bool
 }
 
 func newFakeAkahu(t *testing.T) *fakeAkahu {
@@ -31,7 +32,11 @@ func newFakeAkahu(t *testing.T) *fakeAkahu {
 		if fake.stale {
 			refreshed = "2020-01-01T00:00:00.000Z"
 		}
-		return `{"success":true,"item":{"_id":"acc_1","balance":{"current":100,"available":80,"currency":"NZD"},"refreshed":{"balance":"2026-11-14T19:00:00.000Z","transactions":"` + refreshed + `"}}}`
+		currency := `,"currency":"NZD"`
+		if fake.noCurrency {
+			currency = ""
+		}
+		return `{"success":true,"item":{"_id":"acc_1","balance":{"current":100,"available":80` + currency + `},"refreshed":{"balance":"2026-11-14T19:00:00.000Z","transactions":"` + refreshed + `"}}}`
 	}
 
 	mux := http.NewServeMux()
@@ -200,5 +205,21 @@ func TestAkahuErrors(t *testing.T) {
 	response := h.postJSON(t, "/akahu/transactions", map[string]any{"accountId": "acc_1"}, h.userToken)
 	if !strings.Contains(response.Body.String(), "accountId and startDate are required") {
 		t.Errorf("missing params = %q", response.Body.String())
+	}
+}
+
+func TestAkahuDefaultsTransactionCurrencyToNZD(t *testing.T) {
+	h, fake := newAkahuHarness(t)
+	fake.mu.Lock()
+	fake.noCurrency = true
+	fake.mu.Unlock()
+	response := h.postJSON(t, "/akahu/transactions", map[string]any{
+		"accountId": "acc_1", "startDate": "2026-11-15",
+	}, h.userToken)
+	data := jsonBody(t, response)["data"].(map[string]any)
+	for _, raw := range data["transactions"].(map[string]any)["all"].([]any) {
+		if currency := raw.(map[string]any)["transactionAmount"].(map[string]any)["currency"]; currency != "NZD" {
+			t.Errorf("transaction currency = %q, want NZD", currency)
+		}
 	}
 }

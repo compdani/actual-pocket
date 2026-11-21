@@ -170,6 +170,9 @@ func (p *akahuProvider) transactions(e *core.RequestEvent) error {
 	balance, _ := account["balance"].(map[string]any)
 	current, hasCurrent := numberValueOK(balance["current"])
 	currency, _ := balance["currency"].(string)
+	if currency == "" {
+		currency = "NZD"
+	}
 	if !hasCurrent {
 		return respondStatus(e, "error", map[string]any{"error": "Account balance unavailable"})
 	}

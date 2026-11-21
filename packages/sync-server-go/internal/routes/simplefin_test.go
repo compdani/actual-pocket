@@ -6,9 +6,11 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 )
@@ -17,7 +19,9 @@ const simplefinFixture = `{
   "accounts": [
     {
       "id": "account-1",
-      "org": {"name": "Bank"},
+      "name": "Checking",
+      "org": {"name": "Bank", "domain": "bank.example", "id": "org-1"},
+      "custom-field": "kept",
       "balance": "123.45",
       "balance-date": 1767225600,
       "currency": "USD",
@@ -203,8 +207,14 @@ func TestSimpleFINClaimAndAccounts(t *testing.T) {
 		t.Fatalf("accounts status = %d, body = %q", response.Code, response.Body.String())
 	}
 	data := jsonBody(t, response)["data"].(map[string]any)
-	if accounts := data["accounts"].([]any); len(accounts) != 2 {
-		t.Fatalf("accounts = %v", accounts)
+	list := data["accounts"].([]any)
+	if len(list) != 2 {
+		t.Fatalf("accounts = %v", list)
+	}
+	first := list[0].(map[string]any)
+	org := first["org"].(map[string]any)
+	if first["name"] != "Checking" || first["custom-field"] != "kept" || org["domain"] != "bank.example" || org["id"] != "org-1" {
+		t.Errorf("raw account fields missing: %v", first)
 	}
 
 	stored, ok, err := h.store.Secret("simplefin_accessKey", "")
@@ -353,6 +363,16 @@ func TestSimpleFINTransactions(t *testing.T) {
 	}
 	if second["date"] != "2026-01-02" || second["postedDate"] != "2026-01-02" {
 		t.Errorf("dates = %v", second)
+	}
+
+	query, err := url.ParseQuery(fake.last("/accounts").query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	wantEnd := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC).Unix()
+	if got := query.Get("end-date"); got != strconv.FormatInt(wantEnd, 10) {
+		t.Errorf("end-date = %q, want %d", got, wantEnd)
 	}
 
 	// Batch form returns one entry per account.
