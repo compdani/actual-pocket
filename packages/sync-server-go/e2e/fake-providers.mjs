@@ -3,6 +3,9 @@
 import http from 'node:http';
 
 const basePort = Number(process.env.FAKE_PORT || 6100);
+const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+const fixtureTime = yesterday.toISOString();
+const fixtureDate = fixtureTime.slice(0, 10);
 
 function json(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -36,7 +39,7 @@ start('simplefin', basePort + 1, (req, res) => {
           name: 'SimpleFIN Checking',
           org: { name: 'SimpleFIN Bank', domain: 'simplefin.example', id: 'org-1' },
           balance: '100.00',
-          'balance-date': 1767225600,
+          'balance-date': Math.floor(yesterday.getTime() / 1000),
           currency: 'USD',
           transactions: [
             {
@@ -44,7 +47,7 @@ start('simplefin', basePort + 1, (req, res) => {
               payee: 'Coffee Shop',
               description: 'Coffee',
               amount: '-4.50',
-              posted: 1767312000,
+              posted: Math.floor(yesterday.getTime() / 1000),
             },
           ],
         },
@@ -63,7 +66,9 @@ start('enablebanking', basePort + 2, (req, res) => {
     return;
   }
   if (req.url.startsWith('/aspsps')) {
-    json(res, 200, [{ name: 'Nordea', country: 'FI', psu_types: ['personal'] }]);
+    json(res, 200, {
+      aspsps: [{ name: 'Nordea', country: 'FI', psu_types: ['personal'] }],
+    });
     return;
   }
   if (req.url === '/auth' && req.method === 'POST') {
@@ -100,7 +105,7 @@ start('enablebanking', basePort + 2, (req, res) => {
         {
           balance_amount: { currency: 'EUR', amount: '250.00' },
           balance_type: 'CLAV',
-          reference_date: '2026-11-20',
+          reference_date: fixtureDate,
         },
       ],
     });
@@ -115,7 +120,7 @@ start('enablebanking', basePort + 2, (req, res) => {
           creditor: { name: 'Enable Banking Merchant' },
           credit_debit_indicator: 'DBIT',
           status: 'BOOK',
-          booking_date: '2026-11-20',
+          booking_date: fixtureDate,
           remittance_information: ['Card purchase'],
         },
       ],
@@ -159,7 +164,7 @@ start('pluggyai', basePort + 3, (req, res) => {
       results: [
         {
           id: 'pluggy-tx-1',
-          date: '2026-11-20T00:00:00.000Z',
+          date: fixtureTime,
           description: 'Pluggy purchase',
           descriptionRaw: 'Pluggy Merchant',
           amount: -15,
@@ -181,7 +186,7 @@ start('pluggyai', basePort + 3, (req, res) => {
       type: 'BANK',
       balance: 300,
       currencyCode: 'BRL',
-      updatedAt: '2026-11-20T00:00:00.000Z',
+      updatedAt: fixtureTime,
     });
     return;
   }
@@ -201,7 +206,7 @@ start('akahu', basePort + 4, (req, res) => {
       items: [
         {
           _id: 'akahu-tx-1',
-          date: '2026-11-20T00:00:00.000Z',
+          date: fixtureTime,
           amount: -9,
           description: 'Akahu purchase',
           merchant: { name: 'Akahu Merchant' },
@@ -219,8 +224,8 @@ start('akahu', basePort + 4, (req, res) => {
         connection: { _id: 'akahu-connection-1', name: 'Akahu Bank' },
         balance: { current: 400, available: 400, currency: 'NZD' },
         refreshed: {
-          balance: '2026-11-20T00:00:00.000Z',
-          transactions: '2026-11-20T00:00:00.000Z',
+          balance: new Date().toISOString(),
+          transactions: new Date().toISOString(),
         },
       },
     });
@@ -236,8 +241,8 @@ start('akahu', basePort + 4, (req, res) => {
           connection: { _id: 'akahu-connection-1', name: 'Akahu Bank' },
           balance: { current: 400, available: 400, currency: 'NZD' },
           refreshed: {
-            balance: '2026-11-20T00:00:00.000Z',
-            transactions: '2026-11-20T00:00:00.000Z',
+            balance: new Date().toISOString(),
+            transactions: new Date().toISOString(),
           },
         },
       ],

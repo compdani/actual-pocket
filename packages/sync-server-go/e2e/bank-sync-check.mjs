@@ -1,6 +1,10 @@
-import { chromium } from '/Users/dani/.t3/worktrees/actual-pocket/t3-432ad215-dc17fb4cd41f83eb/node_modules/playwright-core/index.mjs';
-import * as api from '@actual-app/api';
+import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
+
+import * as api from '@actual-app/api';
+import { chromium } from 'playwright-core';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:5091';
 const email = process.env.ACTUAL_EMAIL || 'e2e@example.com';
@@ -9,13 +13,15 @@ const budgetName = process.env.ACTUAL_BUDGET || 'Smoke Budget';
 const groupId = process.env.ACTUAL_GROUP_ID;
 const results = {};
 
+assert(groupId, 'Set ACTUAL_GROUP_ID to the seeded budget’s sync ID');
 const browser = await chromium.launch({
-  executablePath: '/Users/dani/Library/Caches/ms-playwright/chromium-1255/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
-  headless: true,
+  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 });
 const page = await browser.newPage();
 const consoleErrors = [];
-page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+page.on('console', m => {
+  if (m.type() === 'error') consoleErrors.push(m.text());
+});
 page.on('pageerror', e => consoleErrors.push(e.message));
 
 async function setup(cardId, fill) {
@@ -23,23 +29,35 @@ async function setup(cardId, fill) {
   await card.getByRole('button', { name: 'Set up' }).click();
   await fill();
   await page.getByRole('button', { name: 'Save and continue' }).click();
-  await card.getByRole('button', { name: 'Edit setup' }).waitFor({ timeout: 15000 });
+  await card
+    .getByRole('button', { name: 'Edit setup' })
+    .waitFor({ timeout: 15000 });
+}
+
+async function selectNewAccount(provider) {
+  const dialog = page.getByTestId('select-linked-accounts-modal');
+  await dialog
+    .getByRole('button', { name: 'Set up bank sync' })
+    .first()
+    .click();
+  const account = dialog.getByRole('combobox').locator('input');
+  await account.fill('Create new account');
+  await account.press('Enter');
+  const [transactions] = await Promise.all([
+    page.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === `/${provider}/transactions`,
+    ),
+    dialog.getByRole('button', { name: 'Link accounts', exact: true }).click(),
+  ]);
+  assert(transactions.ok(), `Transaction request failed for ${provider}`);
+  await dialog.waitFor({ state: 'hidden' });
 }
 
 async function link(cardId) {
   const card = page.getByTestId(`bank-sync-provider-${cardId}`);
   await card.getByRole('button', { name: 'Link bank account' }).click();
-  const setupBankSync = page.getByRole('button', { name: 'Set up bank sync' }).first();
-  if (await setupBankSync.isVisible().catch(() => false)) {
-    await setupBankSync.click();
-    await page.getByText('Create new account', { exact: true }).first().click();
-  }
-  const linkButton = page.getByRole('button', {
-    name: /^(Link accounts|Link or unlink accounts|Link and unlink accounts)$/,
-  });
-  await linkButton.waitFor({ timeout: 20000 });
-  await linkButton.click({ timeout: 20000 });
-  await page.waitForTimeout(1500);
+  await selectNewAccount(cardId.toLowerCase());
 }
 
 try {
@@ -51,13 +69,16 @@ try {
   await page.getByText(budgetName).click();
   await page.waitForURL('**/budget', { timeout: 30000 });
   await page.goto(`${base}/bank-sync`, { waitUntil: 'domcontentloaded' });
-  await page.getByTestId('bank-sync-provider-simpleFin').waitFor({ timeout: 30000 });
+  await page
+    .getByTestId('bank-sync-provider-simpleFin')
+    .waitFor({ timeout: 30000 });
 
   await setup('simpleFin', async () => {
-    await page.locator('#token-field').fill(Buffer.from('http://bridge.example/claim').toString('base64'));
+    await page
+      .locator('#token-field')
+      .fill(Buffer.from('http://bridge.example/claim').toString('base64'));
   });
   await link('simpleFin');
-  results.simplefin = 'configured and linked';
 
   await setup('pluggyai', async () => {
     await page.locator('#client-id-field').fill('client-id');
@@ -65,18 +86,24 @@ try {
     await page.locator('#item-ids-field').fill('item-1');
   });
   await link('pluggyai');
-  results.pluggyai = 'configured and linked';
 
   await setup('akahu', async () => {
     await page.locator('#appToken-field').fill('app-token');
     await page.locator('#userToken-field').fill('user-token');
   });
   await link('akahu');
-  results.akahu = 'configured and linked';
 
   await setup('enableBanking', async () => {
     await page.locator('#application-id-field').fill('app-id');
-    await page.locator('#secret-key-field').setInputFiles('/tmp/eb.pem');
+    const { privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    });
+    await page.locator('#secret-key-field').setInputFiles({
+      name: 'enable-banking-test.pem',
+      mimeType: 'application/x-pem-file',
+      buffer: Buffer.from(privateKey),
+    });
   });
   const card = page.getByTestId('bank-sync-provider-enableBanking');
   await card.getByRole('button', { name: 'Link bank account' }).click();
@@ -85,31 +112,69 @@ try {
   await page.locator('#bank-field').waitFor({ timeout: 15000 });
   await page.locator('#bank-field').fill('Nordea');
   await page.keyboard.press('Enter');
-  const popupPromise = page.waitForEvent('popup', { timeout: 15000 }).catch(() => null);
+  const popupPromise = page
+    .waitForEvent('popup', { timeout: 15000 })
+    .catch(() => null);
   await page.getByRole('button', { name: /Link bank in browser/ }).click();
   const popup = await popupPromise;
   if (popup) {
     await popup.waitForLoadState('domcontentloaded').catch(() => {});
     await popup.close().catch(() => {});
   }
-  await page.getByRole('button', { name: 'Link accounts' }).waitFor({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Link accounts' }).click();
-  await page.waitForTimeout(1500);
-  results.enablebanking = 'configured and linked';
+  await selectNewAccount('enablebanking');
+  await page
+    .getByText('Enable Banking Checking', { exact: true })
+    .first()
+    .waitFor();
+  await Promise.all([
+    page.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === '/sync/sync' && response.ok(),
+    ),
+    page.getByRole('button', { name: 'Server Sync' }).click(),
+  ]);
 
   // Sync through the public API against the same budget and verify each
   // provider contributed a transaction.
-  fs.mkdirSync('/tmp/bank-sync-api', { recursive: true });
-  await api.init({ dataDir: '/tmp/bank-sync-api', serverURL: base, email, password });
-  await api.downloadBudget(groupId);
-  await api.runBankSync();
-  const accounts = await api.getAccounts();
-  const synced = accounts.filter(a => a.account_sync_source);
-  for (const account of synced) {
-    const transactions = await api.getTransactions(account.id, '2020-01-01', '2026-12-31');
-    results[account.account_sync_source] = `${transactions.length} transaction(s)`;
+  const dataDir = fs.mkdtempSync(path.join(import.meta.dirname, '.bank-sync-'));
+  try {
+    const internal = await api.init({
+      dataDir,
+      serverURL: base,
+      email,
+      password,
+    });
+    await api.downloadBudget(groupId);
+    await api.runBankSync();
+    const accounts = await internal.send('accounts-get');
+    for (const provider of [
+      'simpleFin',
+      'pluggyai',
+      'akahu',
+      'enableBanking',
+    ]) {
+      const account = accounts.find(
+        item => item.account_sync_source === provider,
+      );
+      assert(account, `Missing linked account for ${provider}`);
+      const transactions = await api.getTransactions(
+        account.id,
+        '2020-01-01',
+        new Date().toISOString().slice(0, 10),
+      );
+      const imported = transactions.filter(
+        transaction => transaction.imported_id,
+      );
+      assert(imported.length > 0, `No transactions imported for ${provider}`);
+      results[provider] = `${imported.length} transaction(s)`;
+    }
+  } finally {
+    try {
+      await api.shutdown();
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
   }
-  await api.shutdown();
   console.log(JSON.stringify({ ok: true, results, consoleErrors }, null, 2));
 } finally {
   await browser.close();
