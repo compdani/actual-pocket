@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"sort"
@@ -28,15 +29,21 @@ const (
 var simplefinAccessKeyPattern = regexp.MustCompile(`^.*//.*:.*@.*$`)
 
 type simplefinProvider struct {
-	opts   Options
-	client *http.Client
+	opts     Options
+	client   *http.Client
+	override *url.URL
+	allowed  []netip.Prefix
 }
 
 func registerSimpleFIN(actual *router.RouterGroup[*core.RequestEvent], opts Options) {
+	allowed := append([]netip.Prefix{}, opts.Config.SimpleFINAllowedNetworks...)
+	allowed = append(allowed, opts.Test.SimpleFINAllowedNets...)
 	provider := &simplefinProvider{
-		opts: opts,
+		opts:     opts,
+		override: opts.Test.SimpleFINBaseURL,
+		allowed:  allowed,
 		client: &http.Client{
-			Transport: ssrf.NewTransport(ssrf.Options{AllowedNetworks: opts.Config.SimpleFINAllowedNetworks}),
+			Transport: ssrf.NewTransport(ssrf.Options{AllowedNetworks: allowed}),
 			Timeout:   60 * time.Second,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -452,6 +459,21 @@ func parseSimpleFINStrings(raw json.RawMessage) ([]string, bool, error) {
 	return nil, false, errors.New("accountId and startDate must be strings or arrays of strings")
 }
 
+// rewriteURL points a bank URL at the test override origin, preserving its
+// path and credentials.
+func (p *simplefinProvider) rewriteURL(raw string) string {
+	if p.override == nil {
+		return raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	parsed.Scheme = p.override.Scheme
+	parsed.Host = p.override.Host
+	return parsed.String()
+}
+
 var errSimpleFINForbidden = errors.New("Forbidden")
 
 func isSimpleFINForbidden(value string) bool {
@@ -480,7 +502,12 @@ func (p *simplefinProvider) claimAccessKey(claimURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if ssrf.IsBlockedHost(parsed.Hostname(), ssrf.Options{AllowedNetworks: p.opts.Config.SimpleFINAllowedNetworks}) {
+	claimURL = p.rewriteURL(claimURL)
+	parsed, err = url.Parse(claimURL)
+	if err != nil {
+		return "", err
+	}
+	if ssrf.IsBlockedHost(parsed.Hostname(), ssrf.Options{AllowedNetworks: p.allowed}) {
 		return "", ssrf.ErrBlocked
 	}
 
@@ -558,7 +585,7 @@ func (p *simplefinProvider) getAccounts(accessKey string, accounts []string, sta
 		query.Add("account", account)
 	}
 
-	target := strings.TrimRight(sfin.baseURL, "/") + "/accounts?" + query.Encode()
+	target := strings.TrimRight(p.rewriteURL(sfin.baseURL), "/") + "/accounts?" + query.Encode()
 	current, err := url.Parse(target)
 	if err != nil {
 		return nil, err
@@ -569,7 +596,7 @@ func (p *simplefinProvider) getAccounts(accessKey string, accounts []string, sta
 
 	var response *http.Response
 	for hop := 0; ; hop++ {
-		if ssrf.IsBlockedHost(current.Hostname(), ssrf.Options{AllowedNetworks: p.opts.Config.SimpleFINAllowedNetworks}) {
+		if ssrf.IsBlockedHost(current.Hostname(), ssrf.Options{AllowedNetworks: p.allowed}) {
 			return nil, ssrf.ErrBlocked
 		}
 

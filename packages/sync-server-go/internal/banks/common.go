@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"regexp"
@@ -23,6 +24,10 @@ type Options struct {
 	Store  *store.Store
 	Auth   *auth.Resolver
 	Config *config.Config
+	Logger *slog.Logger
+
+	// Test is filled by Register from ACTUAL_TEST_* when ACTUAL_TEST_MODE=1.
+	Test TestConfig
 }
 
 var fileIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
