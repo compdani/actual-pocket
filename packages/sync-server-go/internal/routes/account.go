@@ -224,7 +224,7 @@ func (o Options) bootstrap(e *core.RequestEvent) error {
 		record.Set("verified", true)
 
 		// The password is validated when the record is saved.
-		auth.SetPassword(record, body.Password)
+		store.SetPassword(record, body.Password)
 
 		return txApp.Save(record)
 	})
@@ -315,7 +315,7 @@ func (o Options) changePassword(e *core.RequestEvent) error {
 
 	// An OAuth2-only user has a random password nobody knows; there is nothing
 	// to change.
-	if !session.Record.GetBool(auth.FieldNamePasswordSet) {
+	if !session.Record.GetBool(store.FieldPasswordSet) {
 		return httpx.Fail(e, http.StatusBadRequest, "no-password-method")
 	}
 
@@ -323,7 +323,7 @@ func (o Options) changePassword(e *core.RequestEvent) error {
 		return httpx.Fail(e, http.StatusBadRequest, "invalid-current-password")
 	}
 
-	auth.SetPassword(session.Record, body.Password)
+	store.SetPassword(session.Record, body.Password)
 
 	// Saving validates the new password and rotates tokenKey, which logs the
 	// user out everywhere...
@@ -404,7 +404,7 @@ func (o Options) validate(e *core.RequestEvent) error {
 // loginMethodFor reports how the user can log in: a user without a chosen
 // password was created through an OAuth2 provider.
 func loginMethodFor(record *core.Record) string {
-	if record.GetBool(auth.FieldNamePasswordSet) {
+	if record.GetBool(store.FieldPasswordSet) {
 		return "password"
 	}
 	return "openid"

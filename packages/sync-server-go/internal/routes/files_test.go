@@ -683,3 +683,36 @@ func TestSyncAfterUpload(t *testing.T) {
 		t.Errorf("download = %q", response.Body.String())
 	}
 }
+
+// TestDeletedBudgetIsNotAccessible covers the bank-sync guard: a deleted budget
+// is denied for everyone, sharing record or not.
+func TestDeletedBudgetIsNotAccessible(t *testing.T) {
+	h := newHarness(t)
+	h.standardFile(t, "file-1", "group-1", "key", h.other.Id)
+	h.grantAccess(t, h.user.Id, "file-1")
+
+	canAccess, err := h.store.CanAccessActiveFile("file-1", h.user.Id)
+	if err != nil || !canAccess {
+		t.Fatalf("before delete: %v %v", canAccess, err)
+	}
+
+	if response := h.postJSON(t, "/sync/delete-user-file", map[string]string{"fileId": "file-1"}, h.adminToken); response.Code != 200 {
+		t.Fatalf("delete status = %d", response.Code)
+	}
+
+	for _, userID := range []string{h.user.Id, h.other.Id, h.admin.Id} {
+		canAccess, err := h.store.CanAccessActiveFile("file-1", userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if canAccess {
+			t.Errorf("deleted budget still accessible for %s", userID)
+		}
+	}
+
+	// The shared record is still there; only the deleted flag denies access.
+	count, err := h.store.CountUserAccess("file-1", h.user.Id)
+	if err != nil || count != 1 {
+		t.Errorf("access count = %d, err = %v", count, err)
+	}
+}

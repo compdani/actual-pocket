@@ -12,6 +12,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/banks"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/httpx"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/ratelimit"
@@ -62,8 +63,12 @@ func Register(se *core.ServeEvent, opts Options) {
 	actual.Bind(limiter.Handler())
 
 	registerMeta(actual, cfg, opts.Version)
+	banks.Register(actual, opts.Auth)
 	registerSync(actual, opts)
 	registerAccount(actual, opts)
+	registerAdmin(actual, opts)
+	registerSecrets(actual, opts)
+	registerAPIKeys(actual, opts)
 	registerStatic(actual, cfg)
 }
 

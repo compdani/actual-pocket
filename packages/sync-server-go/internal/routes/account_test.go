@@ -12,7 +12,6 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 
-	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
 )
 
@@ -74,7 +73,7 @@ func TestBootstrap(t *testing.T) {
 	if !record.ValidatePassword("correct-horse") {
 		t.Error("password was not set")
 	}
-	if !record.GetBool(auth.FieldNamePasswordSet) {
+	if !record.GetBool(store.FieldPasswordSet) {
 		t.Error("bootstrap did not mark password_set")
 	}
 

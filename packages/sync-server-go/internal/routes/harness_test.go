@@ -135,7 +135,7 @@ func (h *harness) createUser(t *testing.T, email, password, role string, enabled
 
 	record := core.NewRecord(users)
 	record.Set("email", email)
-	auth.SetPassword(record, password)
+	store.SetPassword(record, password)
 	record.Set("role", role)
 	record.Set("enabled", enabled)
 	record.Set("owner", owner)
@@ -173,7 +173,7 @@ func (h *harness) createOAuthUser(t *testing.T, email, role string) *core.Record
 
 	record := core.NewRecord(users)
 	record.Set("email", email)
-	auth.SetRandomPassword(record)
+	store.SetRandomPassword(record)
 	record.Set("role", role)
 	record.Set("enabled", true)
 	record.Set("verified", true)
