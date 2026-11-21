@@ -595,7 +595,10 @@ pieces named here. `/openid/enable`, `/openid/disable`, and `/openid/config` ret
 
 1. **Start** (`POST /account/login` with `loginMethod:'openid'`):
    - Port `isValidRedirectUrl` from `accounts/openid.ts` exactly. It's a security
-     boundary. Invalid → `400 {"status":"error","reason":"Invalid redirect URL"}`.
+     boundary. The reference hostname comes from `Settings().Meta.AppURL` (PB has
+     no per-provider `server_hostname`): the return URL's hostname must equal the
+     application's hostname or be `localhost`, ignoring scheme and port exactly
+     like Node. Invalid → `400 {"status":"error","reason":"Invalid redirect URL"}`.
    - `col := users`; `cfg, ok := col.OAuth2.GetProviderConfig(provider)`. Missing, or
      `!col.OAuth2.Enabled` → `400 provider-not-configured`.
    - `p, _ := cfg.InitProvider()`; `p.SetRedirectURL(appURL + "/openid/callback")`,
@@ -619,9 +622,17 @@ pieces named here. `/openid/enable`, `/openid/disable`, and `/openid/config` ret
    - Disabled user → error redirect.
    - Success → `302 <return_url>/openid-cb?token=<auth.IssueToken(rec)>` (same distinct-token helper as password login).
 
+Callback errors use Node's response shape: `400 {"status":"error","reason":…}`,
+not a browser redirect (`app-openid.ts` relays the reason from `accounts/openid.ts`;
+`invalid-or-expired-state`, `openid-grant-failed`, `user-not-found`, …). A 302 to
+`<returnUrl>/openid-cb?token=…` is only sent on success. `/openid/enable`,
+`/openid/disable` and `/openid/config` are not registered and return 404.
+
 **Acceptance:** Go tests drive the flow against a fake OIDC provider (`httptest` serving
-discovery, token, and userinfo) through PB's `oidc` provider. Run one manual login against a
-real provider (Authelia, Keycloak, or Google) and note the result in the PR.
+discovery, token, and userinfo) through PB's `oidc` provider. A Playwright run configures the
+fake provider in the admin API, clicks "Sign in with …", completes the flow, lands logged in,
+and checks the user menu hides "Change password" for the OAuth2-only user. Run one manual
+login against a real provider (Authelia, Keycloak, or Google) and note the result in the PR.
 
 ---
 

@@ -66,6 +66,7 @@ func Register(se *core.ServeEvent, opts Options) {
 	banks.Register(actual, opts.Auth)
 	registerSync(actual, opts)
 	registerAccount(actual, opts)
+	registerOAuth2(actual, opts)
 	registerAdmin(actual, opts)
 	registerSecrets(actual, opts)
 	registerAPIKeys(actual, opts)

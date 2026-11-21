@@ -248,10 +248,9 @@ func (o Options) login(e *core.RequestEvent) error {
 		return err
 	}
 
-	// OAuth2 login is wired in Phase 9. A fresh install has no providers, so
-	// this is the truthful answer until then.
+	// OAuth2 login is driven by the users collection's provider config.
 	if body.LoginMethod == "openid" {
-		return httpx.Fail(e, http.StatusBadRequest, "provider-not-configured")
+		return o.startOAuth(e, body)
 	}
 
 	record, err := o.Store.UserByEmail(body.Email)
