@@ -28,12 +28,10 @@ export function ChangePassword() {
         return t('The current password is incorrect');
       case 'too-many-requests':
         return t('Too many attempts. Please try again later.');
-      case 'sign-in-failed':
-        return t(
-          'Your password was changed, but signing in failed. Please sign in again.',
-        );
+      case 'no-password-method':
+        return t('This account does not sign in with a password.');
       case 'invalid-password':
-        return t('Password cannot be empty');
+        return t('Password must be at least 8 characters');
       case 'password-match':
         return t('Passwords do not match');
       case 'network-failure':
@@ -53,14 +51,11 @@ export function ChangePassword() {
     if (error) {
       setError(error);
     } else {
+      // The server hands back a token signed with the new key, which
+      // subscribe-change-password already stored, so this device stays signed
+      // in.
       setMessage(t('Password successfully changed'));
       setCurrentPassword('');
-      const result = await send('subscribe-sign-in', { password });
-      if (result.error) {
-        setMessage(null);
-        setError('sign-in-failed');
-        return;
-      }
       void navigate('/');
     }
   }

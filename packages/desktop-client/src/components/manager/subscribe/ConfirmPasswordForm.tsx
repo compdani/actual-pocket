@@ -13,11 +13,17 @@ type ConfirmPasswordFormProps = {
   buttons: ReactNode;
   onSetPassword: (password: string) => Promise<void>;
   onError: (error: string) => void;
+  /** When set, an email field is shown above the password fields. */
+  email?: {
+    value: string;
+    onChange: (email: string) => void;
+  };
 };
 export function ConfirmPasswordForm({
   buttons,
   onSetPassword,
   onError,
+  email,
 }: ConfirmPasswordFormProps) {
   const { t } = useTranslation();
 
@@ -53,8 +59,20 @@ export function ConfirmPasswordForm({
         marginTop: 30,
       }}
     >
+      {email && (
+        <BigInput
+          autoFocus
+          placeholder={t('Email')}
+          type="email"
+          autoComplete="username"
+          value={email.value}
+          onChangeValue={email.onChange}
+          style={{ marginBottom: 10 }}
+          onEnter={onSubmit}
+        />
+      )}
       <BigInput
-        autoFocus
+        autoFocus={!email}
         placeholder={t('Password')}
         type={showPassword ? 'text' : 'password'}
         value={password1}

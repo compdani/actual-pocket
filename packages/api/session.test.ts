@@ -50,6 +50,7 @@ it.each([false, true])(
     const instance = await api.init({
       dataDir,
       serverURL,
+      email: 'user@example.com',
       password: 'password',
     });
     if (failClose) {
@@ -69,6 +70,12 @@ it.each([false, true])(
   },
 );
 
+it('requires an email when signing in with a password', async () => {
+  await expect(
+    api.init({ dataDir, serverURL, password: 'password' }),
+  ).rejects.toThrow('Authentication failed: email-required');
+});
+
 it('does not revoke a caller-supplied token', async () => {
   await api.init({ dataDir, serverURL, sessionToken: 'borrowed-session' });
   await api.shutdown();
@@ -87,7 +94,12 @@ it('revokes the current token on explicit sign-out', async () => {
 });
 
 it('clears local credentials when the server is offline', async () => {
-  const instance = await api.init({ dataDir, serverURL, password: 'password' });
+  const instance = await api.init({
+    dataDir,
+    serverURL,
+    email: 'user@example.com',
+    password: 'password',
+  });
   await new Promise<void>(resolve => server.close(() => resolve()));
   await expect(instance.send('subscribe-sign-out')).resolves.toBe('ok');
   expect(await instance.send('subscribe-get-user')).toBeNull();

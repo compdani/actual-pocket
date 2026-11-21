@@ -22,6 +22,7 @@ export function Bootstrap() {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const [error, setError] = useState(null);
+  const [email, setEmail] = useState('');
   const refreshLoginMethods = useRefreshLoginMethods();
 
   const { checked } = useBootstrapped();
@@ -29,18 +30,14 @@ export function Bootstrap() {
 
   function getErrorMessage(error) {
     switch (error) {
+      case 'invalid-email':
+        return t('Enter a valid email address');
       case 'invalid-password':
-        return t('Password cannot be empty');
+        return t('Password must be at least 8 characters');
       case 'password-match':
         return t('Passwords do not match');
       case 'network-failure':
         return t('Unable to contact the server');
-      case 'missing-issuer':
-        return t('OpenID server cannot be empty');
-      case 'missing-client-id':
-        return t('Client ID cannot be empty');
-      case 'missing-client-secret':
-        return t('Client secret cannot be empty');
       default:
         return t(`An unknown error occurred: {{error}}`, { error });
     }
@@ -48,7 +45,14 @@ export function Bootstrap() {
 
   async function onSetPassword(password) {
     setError(null);
-    const { error } = await send('subscribe-bootstrap', { password });
+    if (email.trim() === '') {
+      setError('invalid-email');
+      return;
+    }
+    const { error } = await send('subscribe-bootstrap', {
+      email: email.trim(),
+      password,
+    });
 
     if (error) {
       setError(error);
@@ -72,7 +76,8 @@ export function Bootstrap() {
       <Paragraph style={{ fontSize: 16, color: theme.pageTextDark }}>
         <Trans>
           Actual is a super fast privacy-focused app for managing your finances.
-          To secure your data, you'll need to set a password for your server.
+          To secure your data, you'll need to create the server owner account
+          with an email address and a password.
         </Trans>
       </Paragraph>
 
@@ -101,6 +106,7 @@ export function Bootstrap() {
       )}
 
       <ConfirmPasswordForm
+        email={{ value: email, onChange: setEmail }}
         buttons={
           <Button
             variant="bare"

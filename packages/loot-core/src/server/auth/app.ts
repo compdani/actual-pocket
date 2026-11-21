@@ -5,7 +5,6 @@ import * as encryption from '#server/encryption';
 import { PostError } from '#server/errors';
 import { get, post } from '#server/post';
 import { getServer, isValidBaseURL } from '#server/server-config';
-import type { OpenIdConfig } from '#types/models';
 
 import { createApiKey, listApiKeys, revokeApiKey } from './api-keys';
 
@@ -22,9 +21,6 @@ export type AuthHandlers = {
   'subscribe-sign-in': typeof signIn;
   'subscribe-sign-out': typeof signOut;
   'subscribe-set-token': typeof setToken;
-  'enable-openid': typeof enableOpenId;
-  'get-openid-config': typeof getOpenIdConfig;
-  'enable-password': typeof enablePassword;
 };
 
 export const app = createApp<AuthHandlers>();
@@ -40,9 +36,6 @@ app.method('subscribe-change-password', changePassword);
 app.method('subscribe-sign-in', signIn);
 app.method('subscribe-sign-out', signOut);
 app.method('subscribe-set-token', setToken);
-app.method('enable-openid', enableOpenId);
-app.method('get-openid-config', getOpenIdConfig);
-app.method('enable-password', enablePassword);
 
 async function didBootstrap() {
   return Boolean(await asyncStorage.getItem('did-bootstrap'));
@@ -78,6 +71,7 @@ async function needsBootstrap({ url }: { url?: string } = {}) {
       loginMethod: 'password' | 'openid' | string;
       availableLoginMethods: Array<{
         method: string;
+        provider?: string;
         displayName: string;
         active: boolean;
       }>;
@@ -101,10 +95,7 @@ async function needsBootstrap({ url }: { url?: string } = {}) {
   };
 }
 
-async function bootstrap(loginConfig: {
-  password?: string;
-  openId?: OpenIdConfig;
-}) {
+async function bootstrap(loginConfig: { email: string; password: string }) {
   try {
     const serverConfig = getServer();
     if (!serverConfig) {
@@ -125,7 +116,12 @@ async function bootstrap(loginConfig: {
 
 async function getLoginMethods() {
   let res: {
-    methods?: Array<{ method: string; displayName: string; active: boolean }>;
+    methods?: Array<{
+      method: string;
+      provider?: string;
+      displayName: string;
+      active: boolean;
+    }>;
   };
   try {
     const serverConfig = getServer();
@@ -229,11 +225,16 @@ async function changePassword({
     if (!serverConfig) {
       throw new Error('No sync server configured.');
     }
-    await post(serverConfig.SIGNUP_SERVER + '/change-password', {
+    const res = await post(serverConfig.SIGNUP_SERVER + '/change-password', {
       token: userToken,
       password,
       currentPassword,
     });
+    // Changing the password rotates the signing key, so the server hands back
+    // a token signed with the new one to keep this device signed in.
+    if (res?.token) {
+      await asyncStorage.setItem('user-token', res.token);
+    }
   } catch (err) {
     if (err instanceof PostError) {
       return {
@@ -247,23 +248,19 @@ async function changePassword({
   return {};
 }
 
-async function signIn(
-  loginInfo:
-    | {
-        password: string;
-        loginMethod?: string;
-      }
-    | {
-        returnUrl: string;
-        loginMethod?: 'openid';
-      },
-) {
-  if (
-    typeof loginInfo.loginMethod !== 'string' ||
-    loginInfo.loginMethod == null
-  ) {
-    loginInfo.loginMethod = 'password';
-  }
+type SignInInfo =
+  | {
+      email: string;
+      password: string;
+      loginMethod?: 'password';
+    }
+  | {
+      loginMethod: 'openid';
+      provider: string;
+      returnUrl: string;
+    };
+
+async function signIn(loginInfo: SignInInfo) {
   let res: {
     token?: string;
     returnUrl?: string;
@@ -321,93 +318,4 @@ async function signOut() {
 
 async function setToken({ token }: { token: string }) {
   await asyncStorage.setItem('user-token', token);
-}
-
-async function enableOpenId(openIdConfig: { openId: OpenIdConfig }) {
-  try {
-    const userToken = await asyncStorage.getItem('user-token');
-
-    if (!userToken) {
-      return { error: 'unauthorized' };
-    }
-
-    const serverConfig = getServer();
-    if (!serverConfig) {
-      throw new Error('No sync server configured.');
-    }
-
-    await post(serverConfig.BASE_SERVER + '/openid/enable', openIdConfig, {
-      'X-ACTUAL-TOKEN': userToken,
-    });
-  } catch (err) {
-    if (err instanceof PostError) {
-      return {
-        error: err.reason || 'network-failure',
-      };
-    }
-
-    throw err;
-  }
-  return {};
-}
-
-async function getOpenIdConfig({ password }: { password: string }) {
-  try {
-    const userToken = await asyncStorage.getItem('user-token');
-
-    const serverConfig = getServer();
-    if (!serverConfig) {
-      throw new Error('No sync server configured.');
-    }
-
-    const res = await post(
-      serverConfig.BASE_SERVER + '/openid/config',
-      { password },
-      {
-        'X-ACTUAL-TOKEN': userToken,
-      },
-    );
-
-    if (res) {
-      return res as { openId: OpenIdConfig };
-    }
-
-    return null;
-  } catch (err) {
-    if (err instanceof PostError) {
-      return {
-        error: err.reason || 'network-failure',
-      };
-    }
-
-    throw err;
-  }
-}
-
-async function enablePassword(passwordConfig: { password: string }) {
-  try {
-    const userToken = await asyncStorage.getItem('user-token');
-
-    if (!userToken) {
-      return { error: 'unauthorized' };
-    }
-
-    const serverConfig = getServer();
-    if (!serverConfig) {
-      throw new Error('No sync server configured.');
-    }
-
-    await post(serverConfig.BASE_SERVER + '/openid/disable', passwordConfig, {
-      'X-ACTUAL-TOKEN': userToken,
-    });
-  } catch (err) {
-    if (err instanceof PostError) {
-      return {
-        error: err.reason || 'network-failure',
-      };
-    }
-
-    throw err;
-  }
-  return {};
 }

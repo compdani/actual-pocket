@@ -12,7 +12,7 @@ import { useAuth } from '#auth/AuthProvider';
 import { Permissions } from '#auth/types';
 import { Link } from '#components/common/Link';
 import { Checkbox } from '#components/forms';
-import { useLoginMethod, useMultiuserEnabled } from '#components/ServerContext';
+import { useMultiuserEnabled } from '#components/ServerContext';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useServerPref } from '#hooks/useServerPref';
 import { useSyncedPref } from '#hooks/useSyncedPref';
@@ -140,17 +140,16 @@ function ServerFeatureToggle({
   const isUsingServer = syncServerStatus !== 'no-server';
   const isServerOffline = syncServerStatus === 'offline';
   const { hasPermission } = useAuth();
-  const loginMethod = useLoginMethod();
   const multiuserEnabled = useMultiuserEnabled();
 
   if (!isUsingServer || isServerOffline) {
     return null;
   }
 
-  // Show to admins if OIDC is enabled, or to everyone if multi-user is not enabled
+  // On a multi-user server only admins manage server-wide features; a
+  // single-user server has no admin to defer to.
   const isAdmin = hasPermission(Permissions.ADMINISTRATOR);
-  const oidcEnabled = loginMethod === 'openid';
-  const shouldShow = (oidcEnabled && isAdmin) || !multiuserEnabled;
+  const shouldShow = multiuserEnabled ? isAdmin : true;
 
   if (!shouldShow) {
     return null;

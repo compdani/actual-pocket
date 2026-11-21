@@ -20,7 +20,7 @@ export function UserDirectoryHeader() {
           dispatchSelected({ type: 'select-all', isRangeSelect: e.shiftKey })
         }
       />
-      <Cell value={t('Username')} width="flex" />
+      <Cell value={t('Email')} width="flex" />
       <Cell value={t('Display Name')} width={250} />
       <Cell value={t('Role')} width={100} />
       <Cell value={t('Enabled')} width={100} />

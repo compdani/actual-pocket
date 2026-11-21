@@ -653,18 +653,6 @@ export type Modal =
       };
     }
   | {
-      name: 'enable-openid';
-      options: {
-        onSave?: () => void;
-      };
-    }
-  | {
-      name: 'enable-password-auth';
-      options: {
-        onSave?: () => void;
-      };
-    }
-  | {
       name: 'confirm-unlink-account';
       options: {
         accountName: string;

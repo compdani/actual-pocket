@@ -34,14 +34,12 @@ function useGetUserDirectoryErrors() {
       case 'token-expired':
         return t('Login expired, please log in again.');
       case 'user-cant-be-empty':
-        return t(
-          'Please enter a value for the username; the field cannot be empty.',
-        );
+        return t('Please enter an email address; the field cannot be empty.');
       case 'role-cant-be-empty':
         return t('Select a role; the field cannot be empty.');
       case 'user-already-exists':
         return t(
-          'The username you entered already exists. Please choose a different username.',
+          'A user with this email address already exists. Please choose a different one.',
         );
       case 'not-all-deleted':
         return t(
@@ -170,13 +168,14 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
   const [displayName, setDisplayName] = useState<string>(
     defaultUser.displayName ?? '',
   );
+  const [password, setPassword] = useState<string>('');
   const [enabled, setEnabled] = useState<boolean>(defaultUser.enabled);
   const [role, setRole] = useState<string>(defaultUser.role ?? 'BASIC');
   const [error, setError] = useState<string>('');
 
   async function onSave() {
     if (!userName.trim()) {
-      setError(t('Username is required.'));
+      setError(t('Email is required.'));
       return;
     }
     if (!role) {
@@ -187,10 +186,13 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
       ...defaultUser,
       id: isExistingUser ? defaultUser.id : '',
       owner: isOwner,
-      userName,
+      userName: userName.trim(),
       displayName,
       enabled,
       role,
+      // An empty password means "leave it unchanged" when editing, and
+      // "OAuth2-only user" when creating.
+      ...(password === '' ? {} : { password }),
     };
 
     const method = isExistingUser ? 'user-update' : 'user-add';
@@ -201,9 +203,10 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
     <>
       <SpaceBetween style={{ marginTop: 10 }}>
         <FormField style={{ flex: 1 }}>
-          <FormLabel title={t('Username')} htmlFor="name-field" />
+          <FormLabel title={t('Email')} htmlFor="name-field" />
           <Input
             id="name-field"
+            type="email"
             value={userName}
             onChangeValue={setUserName}
             style={{
@@ -217,7 +220,7 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
               marginTop: 5,
             }}
           >
-            <Trans>The username registered within the OpenID provider.</Trans>
+            <Trans>The email address this user signs in with.</Trans>
           </Text>
         </FormField>
         <View
@@ -251,10 +254,41 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
           }}
         >
           <Trans>
-            Change this username with caution; it is the server owner.
+            Change this email address with caution; it is the server owner.
           </Trans>
         </Text>
       )}
+      <SpaceBetween style={{ marginTop: 10 }}>
+        <FormField style={{ flex: 1 }}>
+          <FormLabel title={t('Password')} htmlFor="password-field" />
+          <Input
+            id="password-field"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChangeValue={setPassword}
+            placeholder={isExistingUser ? t('(Unchanged)') : t('(Optional)')}
+            style={{
+              borderColor: theme.buttonMenuBorder,
+            }}
+          />
+          <Text
+            style={{
+              ...styles.verySmallText,
+              color: theme.pageTextLight,
+              marginTop: 5,
+            }}
+          >
+            {isExistingUser ? (
+              <Trans>Leave empty to keep the current password.</Trans>
+            ) : (
+              <Trans>
+                Leave empty to create a user who signs in with OAuth2 only.
+              </Trans>
+            )}
+          </Text>
+        </FormField>
+      </SpaceBetween>
       <SpaceBetween style={{ marginTop: 10 }}>
         <FormField style={{ flex: 1 }}>
           <FormLabel title={t('Display Name')} htmlFor="displayname-field" />
@@ -274,10 +308,7 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
               marginTop: 5,
             }}
           >
-            <Trans>
-              If left empty, it will be updated from your OpenID provider on the
-              user&apos;s login, if available there.
-            </Trans>
+            <Trans>If left empty, the email address is shown instead.</Trans>
           </View>
           <View
             style={{
@@ -287,7 +318,7 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
           >
             <Trans>
               When displaying user information, this will be shown instead of
-              the username.
+              the email address.
             </Trans>
           </View>
         </FormField>
