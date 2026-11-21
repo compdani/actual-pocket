@@ -428,3 +428,23 @@ func writeConfig(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestMCPRedactSecretsDefaultAndOverride(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg, err := load(t, dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.MCPRedactSecrets {
+		t.Error("MCPRedactSecrets defaults to false, want true")
+	}
+
+	cfg, err = load(t, dir, map[string]string{"ACTUAL_MCP_REDACT_SECRETS": "false"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MCPRedactSecrets {
+		t.Error("MCPRedactSecrets = true with ACTUAL_MCP_REDACT_SECRETS=false")
+	}
+}

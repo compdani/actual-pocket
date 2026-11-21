@@ -155,6 +155,7 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUser
 		config: cfg,
 	}
 	h.store.RegisterUserHooks(app)
+	store.RegisterMCPRedaction(app, true)
 	h.resolver = auth.NewResolver(app, h.store)
 	auth.RegisterMaintenance(app, h.store, h.resolver)
 

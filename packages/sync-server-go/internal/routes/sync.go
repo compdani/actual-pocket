@@ -110,6 +110,15 @@ func (o Options) handleSync(e *core.RequestEvent) error {
 		return httpx.Error(e)
 	}
 
+	if o.SyncStats != nil {
+		o.SyncStats.Enqueue(store.SyncStats{
+			GroupID:          request.GetGroupId(),
+			FileID:           file.ID,
+			LastMessageCount: len(request.GetMessages()),
+			MerkleHash:       string(merkle),
+		})
+	}
+
 	response, err := proto.Marshal(&pb.SyncResponse{
 		Merkle:   string(merkle),
 		Messages: toEnvelopes(result.Messages),

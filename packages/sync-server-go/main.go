@@ -19,7 +19,7 @@ import (
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/cli"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/routes"
-	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
+	storepkg "github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/syncdb"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/migrations"
 )
@@ -65,8 +65,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	// Collections are defined only in hand-written Go migrations.
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{Automigrate: false})
 
-	store := store.New(app)
+	store := storepkg.New(app)
 	store.RegisterUserHooks(app)
+	storepkg.RegisterMCPRedaction(app, cfg.MCPRedactSecrets)
 	resolver := auth.NewResolver(app, store)
 	auth.RegisterMaintenance(app, store, resolver)
 	cli.Register(app, cfg)

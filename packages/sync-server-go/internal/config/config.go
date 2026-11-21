@@ -59,6 +59,9 @@ type Config struct {
 	// SimpleFINAllowedNetworks lists private networks a SimpleFIN server may
 	// live in.
 	SimpleFINAllowedNetworks []netip.Prefix
+	// MCPRedactSecrets blanks hidden secret fields in PocketBase REST/MCP
+	// responses. Defaults to true.
+	MCPRedactSecrets bool
 	// ConfigPath is the config.json that was loaded, if any.
 	ConfigPath string
 	// Warnings lists settings that were found but are no longer supported.
@@ -409,6 +412,12 @@ func (l *loader) load(cfg *Config, projectRoot, defaultDataDir string) error {
 	}
 	if cfg.SimpleFINAllowedNetworks, err = l.networks("simplefinAllowedNetworks", "ACTUAL_SIMPLEFIN_ALLOWED_NETWORKS", nil); err != nil {
 		return err
+	}
+	cfg.MCPRedactSecrets = true
+	if value, ok, err := l.get("mcpRedactSecrets", "ACTUAL_MCP_REDACT_SECRETS", kindBool); err != nil {
+		return err
+	} else if ok {
+		cfg.MCPRedactSecrets = value == "true"
 	}
 
 	// HTTPS is dropped (D12), even when configured through config.json.

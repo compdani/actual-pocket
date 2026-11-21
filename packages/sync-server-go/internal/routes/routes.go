@@ -36,6 +36,8 @@ type Options struct {
 	Sync *syncdb.Engine
 	// Auth resolves the acting user for /sync and /account.
 	Auth *auth.Resolver
+	// SyncStats records a summary after each successful sync.
+	SyncStats *syncStatsRecorder
 }
 
 // Register binds every Actual route on the PocketBase router.
@@ -61,6 +63,10 @@ func Register(se *core.ServeEvent, opts Options) {
 		return httpx.ClientIP(r, cfg.TrustedProxies)
 	})
 	actual.Bind(limiter.Handler())
+
+	if opts.Store != nil {
+		opts.SyncStats = newSyncStatsRecorder(opts.Store)
+	}
 
 	registerMeta(actual, cfg, opts.Version)
 	bankOptions := banks.Options{
