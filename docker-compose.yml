@@ -15,3 +15,19 @@ services:
     volumes:
       - '.:/app'
     restart: 'no'
+
+  actual-sync-server-go:
+    build:
+      context: .
+      dockerfile: sync-server-go.Dockerfile
+      args:
+        VERSION: "dev"
+    image: actual-sync-server-go
+    ports:
+      - '5006:5006'
+    volumes:
+      - 'actual-sync-data:/data'
+    restart: unless-stopped
+
+volumes:
+  actual-sync-data:

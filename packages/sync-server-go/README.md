@@ -69,6 +69,32 @@ server with `ACTUAL_DATA_DIR` pointing at the restored data directory.
 There is no rollback path to the Node server. Recovery means restoring a
 PocketBase backup.
 
+## Docker
+
+From the repository root:
+
+```bash
+docker build -f sync-server-go.Dockerfile -t actual-sync-server-go .
+docker run -p 5006:5006 -v actual-data:/data actual-sync-server-go
+```
+
+The image is `gcr.io/distroless/static:nonroot`; it contains the web client and
+the Go binary, and its health check is `/actual-server health-check`.
+
+## Cross-platform builds
+
+```bash
+make release
+```
+
+Builds `CGO_ENABLED=0` binaries for `linux/amd64`, `linux/arm64`,
+`darwin/arm64` and `windows/amd64` into `dist/`. The version comes from
+`packages/sync-server/package.json`.
+
+Electron packaging is intentionally **not** part of this change. The desktop
+app still forks the Node server; switching it to spawn the bundled Go binary is
+optional Phase 15 work and needs its own installer/updater testing.
+
 ## Smoke test
 
 ```bash

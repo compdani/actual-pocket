@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/build
+**/dist
+**/coverage
+data
+packages/sync-server-go/actual-server
+packages/sync-server-go/data
