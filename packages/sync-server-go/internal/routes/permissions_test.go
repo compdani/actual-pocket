@@ -384,6 +384,33 @@ func (h *harness) runAdminCreate(t *testing.T, actor permUser, role string, extr
 	return h.postJSON(t, "/admin/users/", body, actor.token).Code
 }
 
+func TestPocketBaseCreateWithPasswordSetsPasswordSet(t *testing.T) {
+	h := newHarness(t)
+	owner := h.permActor(t, "owner")
+
+	email := nextPermEmail(t)
+	body := map[string]any{
+		"email":           email,
+		"name":            "Created",
+		"role":            "BASIC",
+		"enabled":         true,
+		"password":        "created-password",
+		"passwordConfirm": "created-password",
+	}
+	res := h.pbRequest(t, http.MethodPost, "/api/collections/users/records", body, owner.token)
+	if res.Code != http.StatusOK {
+		t.Fatalf("create via PocketBase API: status %d, body %s", res.Code, res.Body.String())
+	}
+
+	record, err := h.app.FindAuthRecordByEmail("users", email)
+	if err != nil {
+		t.Fatalf("find created user: %v", err)
+	}
+	if !record.GetBool("password_set") {
+		t.Error("password_set = false for a user created with a password through the PocketBase API, want true")
+	}
+}
+
 func (h *harness) runPocketBaseCreate(t *testing.T, actor permUser, role string, extra map[string]any) int {
 	t.Helper()
 

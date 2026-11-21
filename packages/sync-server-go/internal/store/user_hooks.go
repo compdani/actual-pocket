@@ -15,6 +15,12 @@ var ErrOwnerInvariant = errors.New("the server owner must stay an enabled ADMIN"
 // admin UI, MCP or the CLI. Superusers bypass the API rules but not these.
 func (s *Store) RegisterUserHooks(app core.App) {
 	app.OnRecordCreate("users").BindFunc(func(e *core.RecordEvent) error {
+		// Users created with a chosen password through PocketBase's API or
+		// admin UI can't send password_set themselves (the create rule forbids
+		// it), so derive it here. SetRandomPassword clears the plain value, so
+		// OAuth2-only users stay false.
+		applyPasswordSetFlag(e.Record)
+
 		if !e.Record.GetBool("owner") {
 			return e.Next()
 		}
