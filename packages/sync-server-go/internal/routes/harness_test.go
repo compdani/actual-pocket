@@ -180,6 +180,9 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUser
 		options.Auth = h.resolver
 	})
 	h.handler = server.handler
+	t.Cleanup(func() {
+		_ = app.OnTerminate().Trigger(&core.TerminateEvent{App: app})
+	})
 
 	return h
 }

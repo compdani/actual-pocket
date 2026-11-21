@@ -318,7 +318,7 @@ func TestAdminDeleteUsersPartial(t *testing.T) {
 	h := newHarness(t)
 
 	withOwner := h.deleteJSON(t, "/admin/users", map[string]any{"ids": []string{h.admin.Id}}, h.adminToken)
-	if withOwner.Code != http.StatusForbidden || jsonBody(t, withOwner)["reason"] != "cannot-modify-owner" {
+	if withOwner.Code != http.StatusBadRequest || jsonBody(t, withOwner)["reason"] != "not-all-deleted" {
 		t.Errorf("owner delete = %d %v", withOwner.Code, jsonBody(t, withOwner))
 	}
 

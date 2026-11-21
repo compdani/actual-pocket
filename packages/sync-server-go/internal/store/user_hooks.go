@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tools/hook"
 )
 
 // ErrOwnerInvariant is returned when a change would break the owner guarantees.
@@ -59,15 +60,22 @@ func (s *Store) RegisterUserHooks(app core.App) {
 			return errors.New("the server owner cannot be deleted")
 		}
 
-		// Files do not cascade, so hand them to the owner before the delete.
-		txStore := s.With(e.App)
-		if ownerID := txStore.OwnerID(); ownerID != "" {
-			if err := txStore.TransferFiles(e.Record.Id, ownerID); err != nil {
-				return fmt.Errorf("transfer files from deleted user: %w", err)
-			}
-		}
-
 		return e.Next()
+	})
+
+	app.OnRecordDeleteExecute("users").Bind(&hook.Handler[*core.RecordEvent]{
+		// PocketBase v0.41.1 opens its delete/cascade transaction at priority 99.
+		Priority: 100,
+		Func: func(e *core.RecordEvent) error {
+			// Files do not cascade, so hand them to the owner before the delete.
+			txStore := s.With(e.App)
+			if ownerID := txStore.OwnerID(); ownerID != "" {
+				if err := txStore.TransferFiles(e.Record.Id, ownerID); err != nil {
+					return fmt.Errorf("transfer files from deleted user: %w", err)
+				}
+			}
+			return e.Next()
+		},
 	})
 }
 

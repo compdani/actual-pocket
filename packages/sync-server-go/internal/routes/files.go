@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/filesystem"
 
@@ -305,6 +306,9 @@ func (o Options) uploadUserFile(e *core.RequestEvent) error {
 	}
 
 	body, err := io.ReadAll(e.Request.Body)
+	if errors.Is(err, apis.ErrRequestEntityTooLarge) {
+		return httpx.Fail(e, http.StatusRequestEntityTooLarge, "request-entity-too-large")
+	}
 	if err != nil {
 		return httpx.Error(e)
 	}
@@ -330,10 +334,8 @@ func (o Options) uploadUserFile(e *core.RequestEvent) error {
 		update.Deleted = store.Value(false)
 		groupID = &newGroupID
 
-		if _, err := o.Store.PutFile(fileID, update, blob); err != nil {
-			return httpx.JSON(e, http.StatusInternalServerError, struct {
-				Status string `json:"status"`
-			}{Status: "error"})
+		if err := o.Store.InsertFile(fileID, update, blob); err != nil {
+			return httpx.Error(e)
 		}
 
 		return httpx.JSON(e, http.StatusOK, uploadResponse{Status: "ok", GroupID: newGroupID})

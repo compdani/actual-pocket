@@ -116,6 +116,17 @@ func (e *Engine) BindBackupHooks(app core.App) {
 	})
 }
 
+// TryOutsideBackup runs an advisory write while no backup is active. A
+// restore can terminate the app while holding the backup lock, so advisory
+// writers must not wait for it during shutdown.
+func (e *Engine) TryOutsideBackup(write func()) {
+	if !e.backupMu.TryRLock() {
+		return
+	}
+	defer e.backupMu.RUnlock()
+	write()
+}
+
 // Sync ports sync-simple.js: read the messages newer than `since` first,
 // then insert the incoming ones and update the merkle in one transaction.
 func (e *Engine) Sync(groupID string, messages []Message, since string) (Result, error) {

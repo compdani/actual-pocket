@@ -73,35 +73,37 @@ func (s *Store) FileRecord(id string) (*core.Record, error) {
 	return record, nil
 }
 
-// PutFile inserts a file record or updates an existing one, applying only the
-// fields the update defines. When blob is non-nil it replaces the stored budget
-// in the same save, so PocketBase writes the new file and cleans up the old one.
+// InsertFile creates a budget. The primary key prevents reusing even a
+// soft-deleted record's id, including during concurrent uploads.
+func (s *Store) InsertFile(id string, update FileUpdate, blob *filesystem.File) error {
+	collection, err := s.app.FindCachedCollectionByNameOrId("actual_files")
+	if err != nil {
+		return err
+	}
+	record := core.NewRecord(collection)
+	record.Set("id", id)
+	return s.saveFile(record, update, blob)
+}
+
+// PutFile updates an existing budget, applying only the fields the update
+// defines. When blob is non-nil it replaces the stored budget in the same save.
 func (s *Store) PutFile(id string, update FileUpdate, blob *filesystem.File) (*File, error) {
 	record, err := s.app.FindRecordById("actual_files", id)
 	if err != nil {
-		collection, collectionErr := s.app.FindCollectionByNameOrId("actual_files")
-		if collectionErr != nil {
-			return nil, fmt.Errorf("find actual_files: %w", collectionErr)
-		}
-
-		record = core.NewRecord(collection)
-		record.Set("id", id)
-		if update.Deleted.Set == false {
-			record.Set("deleted", false)
-		}
+		return nil, err
 	}
+	if err := s.saveFile(record, update, blob); err != nil {
+		return nil, err
+	}
+	return fileFromRecord(record), nil
+}
 
+func (s *Store) saveFile(record *core.Record, update FileUpdate, blob *filesystem.File) error {
 	applyFileUpdate(record, update)
-
 	if blob != nil {
 		record.Set("blob", blob)
 	}
-
-	if err := s.app.Save(record); err != nil {
-		return nil, err
-	}
-
-	return fileFromRecord(record), nil
+	return s.app.Save(record)
 }
 
 // ListFiles returns the live budgets a user can see: everything for an admin,

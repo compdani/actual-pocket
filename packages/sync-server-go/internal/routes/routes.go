@@ -68,8 +68,12 @@ func Register(se *core.ServeEvent, opts Options) {
 	})
 	actual.Bind(limiter.Handler())
 
-	if opts.Store != nil {
-		opts.SyncStats = newSyncStatsRecorder(opts.Store)
+	if opts.Store != nil && opts.Sync != nil {
+		opts.SyncStats = newSyncStatsRecorder(opts.Store, opts.Sync)
+		opts.App.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
+			opts.SyncStats.Stop()
+			return e.Next()
+		})
 	}
 
 	registerMeta(actual, cfg, opts.Version)

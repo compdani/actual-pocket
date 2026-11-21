@@ -149,7 +149,7 @@ func (o Options) verifySyncFile(e *core.RequestEvent, fileID string, apiKeyFileI
 		return nil, false
 	}
 
-	file, err := o.Store.File(fileID)
+	file, err := o.Store.LiveFile(fileID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			_ = httpx.Text(e, http.StatusBadRequest, "file-not-found")

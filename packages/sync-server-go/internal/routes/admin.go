@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -306,58 +307,75 @@ func (o Options) adminDeleteUsers(e *core.RequestEvent) error {
 	if session == nil {
 		return nil
 	}
+	if session.Record.GetString("role") != "ADMIN" && !session.Record.GetBool("owner") {
+		return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
+	}
 
 	body := struct {
 		IDs []string `json:"ids"`
 	}{}
-	if err := bindJSON(e, &body); err != nil {
+	if err := bindJSON(e, &body); err != nil || e.Written() {
 		return err
 	}
 
-	collection, err := o.App.FindCachedCollectionByNameOrId("users")
-	if err != nil {
-		return httpx.Error(e)
-	}
 	requestInfo := &core.RequestInfo{
 		Auth:   session.Record,
 		Body:   map[string]any{},
 		Method: http.MethodDelete,
 	}
 
-	deleted := 0
-
-	for _, id := range body.IDs {
-		if id == "" {
-			continue
+	targets := make([]*core.Record, 0, len(body.IDs))
+	seen := make(map[string]struct{}, len(body.IDs))
+	var denied *core.Record
+	err := o.App.RunInTransaction(func(txApp core.App) error {
+		for _, id := range body.IDs {
+			if _, duplicate := seen[id]; duplicate {
+				continue
+			}
+			seen[id] = struct{}{}
+			record, err := txApp.FindRecordById("users", id)
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if record.GetBool("owner") {
+				continue
+			}
+			allowed, err := txApp.CanAccessRecord(record, requestInfo, record.Collection().DeleteRule)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				denied = record
+				continue
+			}
+			targets = append(targets, record)
+		}
+		if denied != nil {
+			return errUserRuleDenied
 		}
 
-		record, err := o.App.FindRecordById("users", id)
-		if err != nil {
-			continue
+		for _, record := range targets {
+			// The delete hook moves this user's files to the owner.
+			if err := txApp.Delete(record); err != nil {
+				return err
+			}
 		}
-
-		allowed, err := o.App.CanAccessRecord(record, requestInfo, collection.DeleteRule)
-		if err != nil {
-			return httpx.Error(e)
-		}
-		if !allowed {
-			return o.userDenied(e, record)
-		}
-
-		// The delete hook moves this user's files to the owner.
-		if err := o.App.Delete(record); err != nil {
-			continue
-		}
-		deleted++
+		return nil
+	})
+	if errors.Is(err, errUserRuleDenied) {
+		return o.userDenied(e, denied)
 	}
-
-	if deleted == len(body.IDs) {
-		return httpx.JSON(e, http.StatusOK, okDataResponse{Status: "ok", Data: struct {
-			SomeDeletionsFailed bool `json:"someDeletionsFailed"`
-		}{SomeDeletionsFailed: false}})
+	if err != nil || len(targets) != len(body.IDs) {
+		return httpx.JSON(e, http.StatusBadRequest, map[string]string{
+			"status": "error", "reason": "not-all-deleted", "details": "",
+		})
 	}
-
-	return httpx.Fail(e, http.StatusBadRequest, "not-all-deleted")
+	return httpx.JSON(e, http.StatusOK, okDataResponse{Status: "ok", Data: struct {
+		SomeDeletionsFailed bool `json:"someDeletionsFailed"`
+	}{SomeDeletionsFailed: false}})
 }
 
 func (o Options) adminGetAccess(e *core.RequestEvent) error {
