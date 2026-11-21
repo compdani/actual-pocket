@@ -67,6 +67,7 @@ func Register(se *core.ServeEvent, opts Options) {
 	registerSync(actual, opts)
 	registerAccount(actual, opts)
 	registerOAuth2(actual, opts)
+	registerCORSProxy(actual, opts)
 	registerAdmin(actual, opts)
 	registerSecrets(actual, opts)
 	registerAPIKeys(actual, opts)
