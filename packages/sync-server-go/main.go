@@ -16,6 +16,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/plugins/migratecmd"
 
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/auth"
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/cli"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/config"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/routes"
 	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
@@ -68,6 +69,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	store.RegisterUserHooks(app)
 	resolver := auth.NewResolver(app, store)
 	auth.RegisterMaintenance(app, store, resolver)
+	cli.Register(app, cfg)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// Electron and Docker health checks wait for this exact line.
