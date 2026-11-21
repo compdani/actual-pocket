@@ -100,13 +100,13 @@ func (s *Store) CreateUser(params CreateUserParams) (*core.Record, error) {
 	return record, nil
 }
 
-// UpdateUserParams describes an edit. Password is only changed when set.
+// UpdateUserParams describes an edit. Pointer fields are only changed when supplied.
 type UpdateUserParams struct {
 	ID          string
 	Email       string
-	DisplayName string
+	DisplayName *string
 	Role        string
-	Enabled     bool
+	Enabled     *bool
 	Password    *string
 }
 
@@ -118,9 +118,13 @@ func (s *Store) UpdateUser(params UpdateUserParams) error {
 	}
 
 	record.Set("email", params.Email)
-	record.Set("name", params.DisplayName)
+	if params.DisplayName != nil {
+		record.Set("name", *params.DisplayName)
+	}
 	record.Set("role", params.Role)
-	record.Set("enabled", params.Enabled)
+	if params.Enabled != nil {
+		record.Set("enabled", *params.Enabled)
+	}
 
 	if params.Password != nil {
 		SetPassword(record, *params.Password)

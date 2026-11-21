@@ -178,6 +178,10 @@ func (o Options) availableLoginMethods() ([]loginMethod, error) {
 		})
 	}
 
+	if !users.OAuth2.Enabled {
+		return methods, nil
+	}
+
 	for _, provider := range users.OAuth2.Providers {
 		displayName := provider.DisplayName
 		if displayName == "" {
@@ -251,6 +255,14 @@ func (o Options) login(e *core.RequestEvent) error {
 	// OAuth2 login is driven by the users collection's provider config.
 	if body.LoginMethod == "openid" {
 		return o.startOAuth(e, body)
+	}
+
+	users, err := o.App.FindCachedCollectionByNameOrId("users")
+	if err != nil {
+		return httpx.Error(e)
+	}
+	if !users.PasswordAuth.Enabled {
+		return httpx.Fail(e, http.StatusBadRequest, "invalid-password")
 	}
 
 	record, err := o.Store.UserByEmail(body.Email)
@@ -449,29 +461,6 @@ func bindJSON(e *core.RequestEvent, dst any) error {
 	}
 
 	return nil
-}
-
-// bindJSONMap parses the body into dst and also returns it as a raw map, for
-// PocketBase rule checks that read @request.body.<field>.
-func bindJSONMap(e *core.RequestEvent, dst any) (map[string]any, error) {
-	raw, ok, err := readJSONPayload(e)
-	if err != nil {
-		return nil, err
-	}
-
-	body := map[string]any{}
-	if !ok {
-		return body, nil
-	}
-
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, httpx.Fail(e, http.StatusBadRequest, "invalid-request-body")
-	}
-	if err := json.Unmarshal(raw, dst); err != nil {
-		return nil, httpx.Fail(e, http.StatusBadRequest, "invalid-request-body")
-	}
-
-	return body, nil
 }
 
 // fieldReason maps a PocketBase validation error onto the Node server's reason

@@ -569,3 +569,50 @@ func TestIsValidRedirectURL(t *testing.T) {
 		t.Error("empty app URL accepted a redirect")
 	}
 }
+
+func TestOAuthStateCannotBeConsumedConcurrently(t *testing.T) {
+	h := newHarness(t)
+	fake := newFakeOIDC(t)
+	fake.email = h.user.Email()
+	h.configureOAuth(t, fake)
+	_, state := h.startOAuth(t, "http://localhost:3000")
+
+	// Pause the old read-then-delete implementation after it reads the state,
+	// so the second request can try to consume the same row.
+	firstDelete := make(chan struct{})
+	continueDelete := make(chan struct{})
+	var once sync.Once
+	h.app.OnRecordDelete("actual_pending_oauth").BindFunc(func(e *core.RecordEvent) error {
+		first := false
+		once.Do(func() {
+			first = true
+			close(firstDelete)
+		})
+		if first {
+			<-continueDelete
+		}
+		return e.Next()
+	})
+
+	firstDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		firstDone <- h.oauthCallback("good-code", state)
+	}()
+	var first, second *httptest.ResponseRecorder
+	select {
+	case <-firstDelete:
+		second = h.oauthCallback("good-code", state)
+		close(continueDelete)
+		first = <-firstDone
+	case first = <-firstDone:
+		close(continueDelete)
+		second = h.oauthCallback("good-code", state)
+	}
+	if first.Code == http.StatusFound {
+		first, second = second, first
+	}
+	if first.Code != http.StatusBadRequest || jsonBody(t, first)["reason"] != "invalid-or-expired-state" ||
+		second.Code != http.StatusFound || fake.tokenHits != 1 {
+		t.Fatalf("callbacks = %d %s and %d, token exchanges = %d", first.Code, first.Body, second.Code, fake.tokenHits)
+	}
+}

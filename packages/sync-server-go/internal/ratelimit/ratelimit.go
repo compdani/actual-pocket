@@ -73,7 +73,6 @@ func (l *Limiter) Identity(fn func(*http.Request) string) {
 // Handler returns the middleware to bind on a route or route group.
 func (l *Limiter) Handler() *hook.Handler[*core.RequestEvent] {
 	return &hook.Handler[*core.RequestEvent]{
-		Id: "actualRateLimit",
 		Func: func(e *core.RequestEvent) error {
 			return l.handle(e)
 		},

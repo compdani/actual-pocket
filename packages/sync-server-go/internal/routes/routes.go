@@ -51,6 +51,10 @@ func Register(se *core.ServeEvent, opts Options) {
 		stdout = os.Stdout
 	}
 
+	if opts.Auth != nil {
+		opts.Auth.BindRevocationMiddleware(se.Router)
+	}
+
 	actual := se.Router.Group("")
 	actual.BindFunc(requestLogger(stdout))
 

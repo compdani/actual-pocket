@@ -148,6 +148,7 @@ func TestUserPermissionMatrix(t *testing.T) {
 					t.Run("admin route", func(t *testing.T) {
 						actor, target := h.permPair(t, actorKind, targetKind)
 						status := h.runAdminUserOp(t, actor, target, op)
+						want := want && (actor.record.Id != target.record.Id || (op != "update-email" && op != "update-password"))
 						if got := status == http.StatusOK; got != want {
 							t.Fatalf("allowed = %v (status %d), want %v", got, status, want)
 						}

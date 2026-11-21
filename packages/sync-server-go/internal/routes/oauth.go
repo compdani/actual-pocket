@@ -4,6 +4,7 @@
 package routes
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -107,28 +108,27 @@ func (o Options) oauthCallback(e *core.RequestEvent) error {
 		return httpx.Fail(e, http.StatusBadRequest, "openid-not-configured")
 	}
 
-	pending, err := o.App.FindFirstRecordByFilter(
-		"actual_pending_oauth",
-		"state = {:state}",
-		dbx.Params{"state": state},
-	)
-	if err != nil {
+	// Delete and read the state in one statement before exchanging the code.
+	var pending struct {
+		Provider  string  `db:"provider"`
+		Verifier  string  `db:"code_verifier"`
+		ReturnURL string  `db:"return_url"`
+		ExpiresAt float64 `db:"expires_at"`
+	}
+	err = o.App.NonconcurrentDB().NewQuery(`
+		DELETE FROM actual_pending_oauth WHERE state = {:state}
+		RETURNING provider, code_verifier, return_url, expires_at
+	`).Bind(dbx.Params{"state": state}).One(&pending)
+	if errors.Is(err, sql.ErrNoRows) {
 		return httpx.Fail(e, http.StatusBadRequest, "invalid-or-expired-state")
 	}
-
-	// Single use: consume the row before any network call, so a replay can
-	// never exchange the same code twice.
-	expired := int64(pending.GetInt("expires_at")) <= time.Now().Unix()
-	providerName := pending.GetString("provider")
-	verifier := pending.GetString("code_verifier")
-	returnURL := pending.GetString("return_url")
-
-	if err := o.App.Delete(pending); err != nil {
+	if err != nil {
 		return httpx.Error(e)
 	}
-	if expired {
+	if pending.ExpiresAt <= float64(time.Now().Unix()) {
 		return httpx.Fail(e, http.StatusBadRequest, "invalid-or-expired-state")
 	}
+	providerName := pending.Provider
 
 	provider, err := o.provider(users, providerName)
 	if err != nil {
@@ -141,7 +141,7 @@ func (o Options) oauthCallback(e *core.RequestEvent) error {
 	}
 	provider.SetRedirectURL(appURL + "/openid/callback")
 
-	tokenSet, err := provider.FetchToken(code, oauth2.VerifierOption(verifier))
+	tokenSet, err := provider.FetchToken(code, oauth2.VerifierOption(pending.Verifier))
 	if err != nil {
 		o.App.Logger().Error("OAuth2 token exchange failed", "provider", providerName, "error", err)
 		return httpx.Fail(e, http.StatusBadRequest, "openid-grant-failed")
@@ -171,7 +171,7 @@ func (o Options) oauthCallback(e *core.RequestEvent) error {
 	}
 
 	return e.Redirect(http.StatusFound,
-		strings.TrimRight(returnURL, "/")+"/openid-cb?token="+url.QueryEscape(token))
+		strings.TrimRight(pending.ReturnURL, "/")+"/openid-cb?token="+url.QueryEscape(token))
 }
 
 // provider resolves a configured OAuth2 provider on the users collection.
@@ -348,15 +348,15 @@ func (o Options) createOAuthUser(provider string, oauthUser *auth.AuthUser) (*co
 }
 
 // isValidRedirectURL is Node's isValidRedirectUrl from accounts/openid.ts: the
-// return URL must point at the same hostname as the configured application, or
-// at localhost. Ports and schemes are deliberately ignored, exactly like Node.
+// HTTP(S) return URL must point at the configured hostname or localhost.
+// The port may differ from the application's port.
 func isValidRedirectURL(raw, appURL string) bool {
 	if raw == "" || appURL == "" {
 		return false
 	}
 
 	redirectURL, err := url.Parse(raw)
-	if err != nil || redirectURL.Host == "" {
+	if err != nil || redirectURL.Host == "" || (redirectURL.Scheme != "http" && redirectURL.Scheme != "https") {
 		return false
 	}
 

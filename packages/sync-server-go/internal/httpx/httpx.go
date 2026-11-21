@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -78,7 +79,10 @@ func writeBody(e *core.RequestEvent, status int, contentType string, body []byte
 	tag := ETag(body)
 	header.Set("ETag", tag)
 
-	if isFresh(e.Request.Header.Get("If-None-Match"), tag) {
+	method := e.Request.Method
+	if (method == http.MethodGet || method == http.MethodHead) &&
+		status >= 200 && status < 300 &&
+		isFresh(e.Request.Header.Get("If-None-Match"), tag) {
 		header.Del("Content-Type")
 		header.Del("Content-Length")
 		e.Response.WriteHeader(304)

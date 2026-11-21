@@ -69,6 +69,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	store.RegisterUserHooks(app)
 	storepkg.RegisterMCPRedaction(app, cfg.MCPRedactSecrets)
 	resolver := auth.NewResolver(app, store)
+	resolver.BindRevocationHooks()
 	auth.RegisterMaintenance(app, store, resolver)
 	cli.Register(app, cfg)
 

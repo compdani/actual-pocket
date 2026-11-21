@@ -62,6 +62,7 @@ func (h *harness) pbHandler(t *testing.T) http.Handler {
 			h.pbErr = err
 			return
 		}
+		h.resolver.BindRevocationMiddleware(pbRouter)
 		h.pbMux, h.pbErr = pbRouter.BuildMux()
 	})
 	if h.pbErr != nil {
@@ -157,6 +158,7 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUser
 	h.store.RegisterUserHooks(app)
 	store.RegisterMCPRedaction(app, true)
 	h.resolver = auth.NewResolver(app, h.store)
+	h.resolver.BindRevocationHooks()
 	auth.RegisterMaintenance(app, h.store, h.resolver)
 
 	if withUsers {

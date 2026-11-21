@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -17,10 +18,46 @@ import (
 type adminUserRequest struct {
 	ID          string  `json:"id"`
 	UserName    string  `json:"userName"`
-	DisplayName string  `json:"displayName"`
+	DisplayName *string `json:"displayName"`
 	Role        string  `json:"role"`
-	Enabled     bool    `json:"enabled"`
+	Enabled     *bool   `json:"enabled"`
 	Password    *string `json:"password"`
+}
+
+// bindAdminUser builds the rule body from the same values the save uses.
+func bindAdminUser(e *core.RequestEvent, dst *adminUserRequest) (map[string]any, error) {
+	raw, ok, err := readJSONPayload(e)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	fields := map[string]any{}
+	if json.Unmarshal(raw, &fields) != nil || json.Unmarshal(raw, dst) != nil {
+		return nil, httpx.Fail(e, http.StatusBadRequest, "invalid-request-body")
+	}
+
+	body := map[string]any{"email": dst.UserName, "role": dst.Role}
+	if dst.DisplayName != nil {
+		body["name"] = *dst.DisplayName
+	}
+	if dst.Enabled != nil {
+		body["enabled"] = *dst.Enabled
+	}
+	if dst.Password != nil {
+		body["password"] = *dst.Password
+	}
+
+	for key, value := range fields {
+		switch strings.ToLower(key) {
+		case "owner", store.FieldPasswordSet:
+			canonical := strings.ToLower(key)
+			if _, exists := body[canonical]; exists {
+				return nil, httpx.Fail(e, http.StatusBadRequest, "invalid-request-body")
+			}
+			body[canonical] = value
+		}
+	}
+	return body, nil
 }
 
 type accessRequest struct {
@@ -87,8 +124,8 @@ func (o Options) adminCreateUser(e *core.RequestEvent) error {
 	}
 
 	body := adminUserRequest{}
-	rawBody, err := bindJSONMap(e, &body)
-	if err != nil {
+	ruleBody, err := bindAdminUser(e, &body)
+	if err != nil || e.Written() {
 		return err
 	}
 
@@ -107,7 +144,7 @@ func (o Options) adminCreateUser(e *core.RequestEvent) error {
 	}
 	requestInfo := &core.RequestInfo{
 		Auth:   session.Record,
-		Body:   rawBody,
+		Body:   ruleBody,
 		Method: http.MethodPost,
 	}
 
@@ -137,11 +174,15 @@ func (o Options) createUserRecord(body adminUserRequest, requestInfo *core.Reque
 	var created *core.Record
 
 	err := o.App.RunInTransaction(func(txApp core.App) error {
+		var displayName string
+		if body.DisplayName != nil {
+			displayName = *body.DisplayName
+		}
 		record, err := o.Store.With(txApp).CreateUser(store.CreateUserParams{
 			Email:       body.UserName,
-			DisplayName: body.DisplayName,
+			DisplayName: displayName,
 			Role:        body.Role,
-			Enabled:     body.Enabled,
+			Enabled:     body.Enabled != nil && *body.Enabled,
 			Password:    body.Password,
 		})
 		if err != nil {
@@ -171,8 +212,8 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 	}
 
 	body := adminUserRequest{}
-	rawBody, err := bindJSONMap(e, &body)
-	if err != nil {
+	ruleBody, err := bindAdminUser(e, &body)
+	if err != nil || e.Written() {
 		return err
 	}
 
@@ -189,7 +230,7 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 	collection := record.Collection()
 	requestInfo := &core.RequestInfo{
 		Auth:   session.Record,
-		Body:   rawBody,
+		Body:   ruleBody,
 		Method: http.MethodPatch,
 	}
 
@@ -204,8 +245,11 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 		return o.userDenied(e, record)
 	}
 
-	// Changing another user's email or password needs manage access.
-	if record.Id != session.UserID && (changesEmail(rawBody, record) || changesPassword(rawBody)) {
+	if body.UserName != record.Email() || body.Password != nil {
+		if record.Id == session.UserID {
+			return httpx.FailDetails(e, http.StatusForbidden, "forbidden",
+				"Use /account/change-password to change your password or PocketBase's email confirmation flow to change your email")
+		}
 		allowed, err := o.App.CanAccessRecord(record, requestInfo, collection.ManageRule)
 		if err != nil {
 			return httpx.Error(e)
@@ -255,26 +299,6 @@ func (o Options) userDenied(e *core.RequestEvent, record *core.Record) error {
 	}
 
 	return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
-}
-
-// changesEmail reports whether the request body sets a different email.
-func changesEmail(body map[string]any, record *core.Record) bool {
-	// PocketBase's API uses "email"; our admin route uses "userName".
-	value, ok := body["email"].(string)
-	if !ok {
-		value, ok = body["userName"].(string)
-	}
-	if !ok {
-		return false
-	}
-
-	return value != record.GetString("email")
-}
-
-// changesPassword reports whether the request body sets a password.
-func changesPassword(body map[string]any) bool {
-	value, ok := body["password"].(string)
-	return ok && value != ""
 }
 
 func (o Options) adminDeleteUsers(e *core.RequestEvent) error {
