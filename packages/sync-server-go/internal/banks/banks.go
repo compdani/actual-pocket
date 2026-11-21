@@ -13,7 +13,7 @@ func Register(actual *router.RouterGroup[*core.RequestEvent], opts Options) {
 	registerSimpleFIN(actual, opts)
 	registerEnableBanking(actual, opts)
 	registerPluggy(actual, opts)
+	registerAkahu(actual, opts)
 
-	registerStatusStub(actual, opts, "akahu")
 	registerStatusStub(actual, opts, "gocardless")
 }
