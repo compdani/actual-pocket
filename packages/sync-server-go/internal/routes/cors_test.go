@@ -402,3 +402,62 @@ func jsonError(t *testing.T, response *httptest.ResponseRecorder) map[string]any
 	}
 	return body
 }
+
+func TestCORSProxyRequiresSafeHTTPSPath(t *testing.T) {
+	repos := []string{"https://github.com/user/repo1"}
+	for _, target := range []string{
+		"http://api.github.com/repos/user/repo1",
+		"https://api.github.com/repos/user/repo1/../another",
+		"https://api.github.com/repos/user/repo1/%2e%2E/another",
+		"https://api.github.com/repos/user/repo1/path%2fanother",
+	} {
+		if corsURLAllowed(target, repos) {
+			t.Errorf("allowed %s", target)
+		}
+	}
+	plain, err := url.Parse("http://api.github.com/repos/user/repo1")
+	if err != nil || isGitHubURL(plain) {
+		t.Fatal("allowed a non-HTTPS GitHub credential destination")
+	}
+}
+
+func TestCORSProxyProtectsRequestAndResponse(t *testing.T) {
+	h, fake := newCORSHarness(t)
+	target := "https://api.github.com/repos/user/repo1"
+	fake.responses[target] = proxyResponse(http.StatusOK, "text/plain", "ok")
+	response := h.corsGetBody(t, target, map[string]any{
+		"headers": map[string]string{"authorization": "client-credential"},
+	})
+	if upstream := fake.lastRequest().Header.Get("Authorization"); upstream != "" {
+		t.Error("forwarded a client authorization header")
+	}
+	if actual := response.Result().Header.Get("Content-Type"); actual != "text/plain" {
+		t.Errorf("committed Content-Type = %q", actual)
+	}
+}
+
+func TestCORSProxyValidatesRedirects(t *testing.T) {
+	h, fake := newCORSHarness(t)
+	target := "https://api.github.com/repos/user/repo1/releases"
+	for _, redirect := range []string{"https://api.github.com/repos/other/private", "http://api.github.com/repos/user/repo1"} {
+		upstream := proxyResponse(http.StatusFound, "text/plain", "")
+		upstream.Header.Set("Location", redirect)
+		fake.responses[target] = upstream
+
+		response := h.corsGet(t, target)
+		if response.Code != http.StatusBadGateway || fake.lastRequest().URL.String() != target {
+			t.Errorf("redirect to %s = %d %s", redirect, response.Code, response.Body)
+		}
+	}
+}
+
+func TestCORSProxyRejectsOversizedResponse(t *testing.T) {
+	h, fake := newCORSHarness(t)
+	target := "https://api.github.com/repos/user/repo1"
+	fake.responses[target] = proxyResponse(http.StatusOK, "text/plain", strings.Repeat("x", (10<<20)+1))
+
+	response := h.corsGet(t, target)
+	if response.Code != http.StatusBadGateway || response.Body.Len() > 1024 {
+		t.Fatalf("oversized response = %d, body length %d", response.Code, response.Body.Len())
+	}
+}
