@@ -3,6 +3,7 @@ FROM node:24.22.1-bookworm AS web
 WORKDIR /app
 COPY . .
 ENV HUSKY=0
+ENV YARN_NETWORK_CONCURRENCY=8
 RUN yarn install --immutable
 # Lage requires a Git HEAD; the real .git is excluded from the build context.
 RUN git -c init.defaultBranch=master init -q \
