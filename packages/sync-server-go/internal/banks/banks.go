@@ -11,8 +11,8 @@ import (
 // not-configured stub.
 func Register(actual *router.RouterGroup[*core.RequestEvent], opts Options) {
 	registerSimpleFIN(actual, opts)
+	registerEnableBanking(actual, opts)
 
-	registerStatusStub(actual, opts, "enablebanking")
 	registerStatusStub(actual, opts, "pluggyai")
 	registerStatusStub(actual, opts, "akahu")
 	registerStatusStub(actual, opts, "gocardless")

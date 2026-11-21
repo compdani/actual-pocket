@@ -38,6 +38,10 @@ func respond(e *core.RequestEvent, data any) error {
 	return httpx.JSON(e, http.StatusOK, bankResponse{Status: "ok", Data: data})
 }
 
+func respondStatus(e *core.RequestEvent, status string, data any) error {
+	return httpx.JSON(e, http.StatusOK, bankResponse{Status: status, Data: data})
+}
+
 // budgetSession resolves a bank-sync session. When allowAPIKey is true it
 // accepts budget-scoped API keys, otherwise it requires an ordinary session.
 // It returns the session, the file id whose credentials to use, and ok=false
