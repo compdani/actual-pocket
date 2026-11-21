@@ -233,14 +233,14 @@ func TestAdminUpdateUserErrors(t *testing.T) {
 	demote := h.patchJSON(t, "/admin/users/", map[string]any{
 		"id": h.admin.Id, "userName": "admin@example.com", "role": "BASIC", "enabled": true,
 	}, h.adminToken)
-	if demote.Code != 400 || jsonBody(t, demote)["reason"] != "cannot-modify-owner" {
+	if demote.Code != http.StatusForbidden || jsonBody(t, demote)["reason"] != "cannot-modify-owner" {
 		t.Errorf("demote = %d %v", demote.Code, jsonBody(t, demote))
 	}
 
 	disable := h.patchJSON(t, "/admin/users/", map[string]any{
 		"id": h.admin.Id, "userName": "admin@example.com", "role": "ADMIN", "enabled": false,
 	}, h.adminToken)
-	if disable.Code != 400 || jsonBody(t, disable)["reason"] != "cannot-modify-owner" {
+	if disable.Code != http.StatusForbidden || jsonBody(t, disable)["reason"] != "cannot-modify-owner" {
 		t.Errorf("disable = %d %v", disable.Code, jsonBody(t, disable))
 	}
 
@@ -251,8 +251,17 @@ func TestAdminUpdateUserErrors(t *testing.T) {
 		t.Errorf("duplicate = %d %v", duplicate.Code, jsonBody(t, duplicate))
 	}
 
+	// A basic user may edit their own profile...
+	self := h.patchJSON(t, "/admin/users/", map[string]any{
+		"id": h.user.Id, "userName": "user@example.com", "displayName": "Self", "role": "BASIC", "enabled": true,
+	}, h.userToken)
+	if self.Code != 200 {
+		t.Errorf("self edit status = %d, body = %q", self.Code, self.Body.String())
+	}
+
+	// ...but not another user.
 	forbidden := h.patchJSON(t, "/admin/users/", map[string]any{
-		"id": h.user.Id, "userName": "user@example.com", "role": "BASIC",
+		"id": h.other.Id, "userName": "other@example.com", "role": "BASIC", "enabled": true,
 	}, h.userToken)
 	if forbidden.Code != http.StatusForbidden {
 		t.Errorf("non-admin status = %d", forbidden.Code)
@@ -309,7 +318,7 @@ func TestAdminDeleteUsersPartial(t *testing.T) {
 	h := newHarness(t)
 
 	withOwner := h.deleteJSON(t, "/admin/users", map[string]any{"ids": []string{h.admin.Id}}, h.adminToken)
-	if withOwner.Code != 400 || jsonBody(t, withOwner)["reason"] != "not-all-deleted" {
+	if withOwner.Code != http.StatusForbidden || jsonBody(t, withOwner)["reason"] != "cannot-modify-owner" {
 		t.Errorf("owner delete = %d %v", withOwner.Code, jsonBody(t, withOwner))
 	}
 

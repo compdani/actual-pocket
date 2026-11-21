@@ -355,7 +355,24 @@ func TestUsersAuthOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertSuperuserOnly(t, users)
+	// The users collection enforces the owner > ADMIN > BASIC hierarchy in
+	// PocketBase itself, so the REST API and the Go routes agree.
+	wantRules := map[string]struct {
+		rule *string
+		want string
+	}{
+		"list":   {users.ListRule, userListRule},
+		"view":   {users.ViewRule, userListRule},
+		"create": {users.CreateRule, userCreateRule},
+		"update": {users.UpdateRule, userUpdateRule},
+		"delete": {users.DeleteRule, userDeleteRule},
+		"manage": {users.ManageRule, userManageRule},
+	}
+	for name, got := range wantRules {
+		if got.rule == nil || *got.rule != got.want {
+			t.Errorf("%sRule = %v, want %q", name, got.rule, got.want)
+		}
+	}
 
 	if users.AuthRule == nil || *users.AuthRule != "enabled = true" {
 		t.Errorf("AuthRule = %v, want \"enabled = true\"", users.AuthRule)

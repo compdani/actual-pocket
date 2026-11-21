@@ -73,10 +73,10 @@ type CreateUserParams struct {
 }
 
 // CreateUser inserts a user with PB auth fields set up.
-func (s *Store) CreateUser(params CreateUserParams) (string, error) {
+func (s *Store) CreateUser(params CreateUserParams) (*core.Record, error) {
 	collection, err := s.app.FindCollectionByNameOrId("users")
 	if err != nil {
-		return "", fmt.Errorf("find users: %w", err)
+		return nil, fmt.Errorf("find users: %w", err)
 	}
 
 	record := core.NewRecord(collection)
@@ -94,10 +94,10 @@ func (s *Store) CreateUser(params CreateUserParams) (string, error) {
 	}
 
 	if err := s.app.Save(record); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return record.Id, nil
+	return record, nil
 }
 
 // UpdateUserParams describes an edit. Password is only changed when set.
@@ -127,20 +127,6 @@ func (s *Store) UpdateUser(params UpdateUserParams) error {
 	}
 
 	return s.app.Save(record)
-}
-
-// DeleteUser removes a non-owner user and the grants that point at it. Files
-// it owned must be reassigned first (the owner relation does not cascade).
-func (s *Store) DeleteUser(id string) (bool, error) {
-	record, err := s.app.FindRecordById("users", id)
-	if err != nil {
-		return false, nil
-	}
-	if record.GetBool("owner") {
-		return false, nil
-	}
-
-	return true, s.app.Delete(record)
 }
 
 // Owner returns the server owner record, if one exists.

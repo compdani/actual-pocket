@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"ganigeorgiev.com/pocketbase/pocketbase"
+	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/security"
 	"github.com/golang-jwt/jwt/v5"
@@ -42,6 +45,56 @@ type harness struct {
 	userToken     string
 	otherToken    string
 	disabledToken string
+
+	pbOnce sync.Once
+	pbMux  http.Handler
+	pbErr  error
+}
+
+// pbMux builds PocketBase's own REST API router on top of the harness app.
+func (h *harness) pbHandler(t *testing.T) http.Handler {
+	t.Helper()
+
+	h.pbOnce.Do(func() {
+		pbRouter, err := apis.NewRouter(h.app)
+		if err != nil {
+			h.pbErr = err
+			return
+		}
+		h.pbMux, h.pbErr = pbRouter.BuildMux()
+	})
+	if h.pbErr != nil {
+		t.Fatalf("build PocketBase router: %v", h.pbErr)
+	}
+
+	return h.pbMux
+}
+
+// pbRequest calls PocketBase's own API with an auth token.
+func (h *harness) pbRequest(t *testing.T, method, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var payload io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		payload = bytes.NewReader(encoded)
+	}
+
+	request := httptest.NewRequest(method, path, payload)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		request.Header.Set("Authorization", token)
+	}
+
+	recorder := httptest.NewRecorder()
+	h.pbHandler(t).ServeHTTP(recorder, request)
+
+	return recorder
 }
 
 func newHarness(t *testing.T) *harness {
@@ -100,6 +153,7 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUser
 		engine: engine,
 		config: cfg,
 	}
+	h.store.RegisterUserHooks(app)
 	auth.RegisterMaintenance(app, h.store)
 
 	if withUsers {

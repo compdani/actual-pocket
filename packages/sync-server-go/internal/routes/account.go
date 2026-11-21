@@ -410,28 +410,39 @@ func loginMethodFor(record *core.Record) string {
 	return "openid"
 }
 
-// bindJSON parses an application/json body the way express.json() does: an
-// empty body stays zero-valued, other content types are ignored, and malformed
-// JSON is a 400.
-func bindJSON(e *core.RequestEvent, dst any) error {
+// readJSONPayload returns the raw JSON body, or ok=false when the request has
+// no JSON body (another content type or an empty body), like express.json().
+func readJSONPayload(e *core.RequestEvent) ([]byte, bool, error) {
 	contentType := e.Request.Header.Get("Content-Type")
 	if contentType != "" {
 		mediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil || mediaType != "application/json" {
-			return nil
+			return nil, false, nil
 		}
 	}
 
 	raw, err := io.ReadAll(e.Request.Body)
 	if err != nil {
 		if errors.Is(err, apis.ErrRequestEntityTooLarge) {
-			return httpx.Fail(e, http.StatusRequestEntityTooLarge, "request-entity-too-large")
+			return nil, false, httpx.Fail(e, http.StatusRequestEntityTooLarge, "request-entity-too-large")
 		}
-		return httpx.Error(e)
+		return nil, false, httpx.Error(e)
 	}
 
 	if len(bytes.TrimSpace(raw)) == 0 {
-		return nil
+		return nil, false, nil
+	}
+
+	return raw, true, nil
+}
+
+// bindJSON parses an application/json body the way express.json() does: an
+// empty body stays zero-valued, other content types are ignored, and malformed
+// JSON is a 400.
+func bindJSON(e *core.RequestEvent, dst any) error {
+	raw, ok, err := readJSONPayload(e)
+	if err != nil || !ok {
+		return err
 	}
 
 	if err := json.Unmarshal(raw, dst); err != nil {
@@ -439,6 +450,29 @@ func bindJSON(e *core.RequestEvent, dst any) error {
 	}
 
 	return nil
+}
+
+// bindJSONMap parses the body into dst and also returns it as a raw map, for
+// PocketBase rule checks that read @request.body.<field>.
+func bindJSONMap(e *core.RequestEvent, dst any) (map[string]any, error) {
+	raw, ok, err := readJSONPayload(e)
+	if err != nil {
+		return nil, err
+	}
+
+	body := map[string]any{}
+	if !ok {
+		return body, nil
+	}
+
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return nil, httpx.Fail(e, http.StatusBadRequest, "invalid-request-body")
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return nil, httpx.Fail(e, http.StatusBadRequest, "invalid-request-body")
+	}
+
+	return body, nil
 }
 
 // fieldReason maps a PocketBase validation error onto the Node server's reason

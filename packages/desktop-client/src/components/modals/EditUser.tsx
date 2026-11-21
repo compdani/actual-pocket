@@ -70,7 +70,18 @@ function useSaveUser() {
     user: User,
     setError: (error: string) => void,
   ): Promise<boolean> {
-    const res = await send(method, user);
+    // The owner flag is server-owned: sending it on create is rejected by the
+    // users create rule, and it can never be changed through an update.
+    const payload: Omit<User, 'owner'> = {
+      id: user.id,
+      userName: user.userName,
+      displayName: user.displayName,
+      role: user.role,
+      enabled: user.enabled,
+      ...(user.password ? { password: user.password } : {}),
+    };
+
+    const res = await send(method, payload);
     if (!('error' in res)) {
       const newId = res.id;
       if (newId) {

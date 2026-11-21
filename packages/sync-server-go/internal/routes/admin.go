@@ -85,12 +85,10 @@ func (o Options) adminCreateUser(e *core.RequestEvent) error {
 	if session == nil {
 		return nil
 	}
-	if !o.Store.IsAdmin(session.UserID) {
-		return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
-	}
 
 	body := adminUserRequest{}
-	if err := bindJSON(e, &body); err != nil {
+	rawBody, err := bindJSONMap(e, &body)
+	if err != nil {
 		return err
 	}
 
@@ -103,15 +101,24 @@ func (o Options) adminCreateUser(e *core.RequestEvent) error {
 			"User "+body.UserName+" already exists")
 	}
 
-	id, err := o.Store.CreateUser(store.CreateUserParams{
-		Email:       body.UserName,
-		DisplayName: body.DisplayName,
-		Role:        body.Role,
-		Enabled:     body.Enabled,
-		Password:    body.Password,
-	})
+	collection, err := o.App.FindCachedCollectionByNameOrId("users")
 	if err != nil {
-		if reason := fieldReason(err); reason != "" {
+		return httpx.Error(e)
+	}
+	requestInfo := &core.RequestInfo{
+		Auth:   session.Record,
+		Body:   rawBody,
+		Method: http.MethodPost,
+	}
+
+	// PocketBase checks the create rule on the saved record, so do the same
+	// inside one transaction and roll back when it denies.
+	created, denyErr := o.createUserRecord(body, requestInfo, collection)
+	if errors.Is(denyErr, errUserRuleDenied) {
+		return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
+	}
+	if denyErr != nil {
+		if reason := fieldReason(denyErr); reason != "" {
 			return httpx.Fail(e, http.StatusBadRequest, reason)
 		}
 		return httpx.Error(e)
@@ -119,7 +126,42 @@ func (o Options) adminCreateUser(e *core.RequestEvent) error {
 
 	return httpx.JSON(e, http.StatusOK, okDataResponse{Status: "ok", Data: struct {
 		ID string `json:"id"`
-	}{ID: id}})
+	}{ID: created.Id}})
+}
+
+// errUserRuleDenied unwinds the create transaction when the create rule denies
+// the new record.
+var errUserRuleDenied = errors.New("user rule denied")
+
+func (o Options) createUserRecord(body adminUserRequest, requestInfo *core.RequestInfo, collection *core.Collection) (*core.Record, error) {
+	var created *core.Record
+
+	err := o.App.RunInTransaction(func(txApp core.App) error {
+		record, err := o.Store.With(txApp).CreateUser(store.CreateUserParams{
+			Email:       body.UserName,
+			DisplayName: body.DisplayName,
+			Role:        body.Role,
+			Enabled:     body.Enabled,
+			Password:    body.Password,
+		})
+		if err != nil {
+			return err
+		}
+
+		allowed, err := txApp.CanAccessRecord(record, requestInfo, collection.CreateRule)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return errUserRuleDenied
+		}
+
+		created = record
+
+		return nil
+	})
+
+	return created, err
 }
 
 func (o Options) adminUpdateUser(e *core.RequestEvent) error {
@@ -127,12 +169,10 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 	if session == nil {
 		return nil
 	}
-	if !o.Store.IsAdmin(session.UserID) {
-		return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
-	}
 
 	body := adminUserRequest{}
-	if err := bindJSON(e, &body); err != nil {
+	rawBody, err := bindJSONMap(e, &body)
+	if err != nil {
 		return err
 	}
 
@@ -146,10 +186,33 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 			"Cannot find user "+body.UserName+" to update")
 	}
 
-	// The owner can never be demoted or disabled.
-	if record.GetBool("owner") && (body.Role != "ADMIN" || !body.Enabled) {
-		return httpx.FailDetails(e, http.StatusBadRequest, "cannot-modify-owner",
-			"The server owner cannot be demoted or disabled")
+	collection := record.Collection()
+	requestInfo := &core.RequestInfo{
+		Auth:   session.Record,
+		Body:   rawBody,
+		Method: http.MethodPatch,
+	}
+
+	// The rules run against the record as it currently is, exactly like
+	// PocketBase's own update endpoint (the :changed modifier compares the
+	// request body with these values).
+	allowed, err := o.App.CanAccessRecord(record, requestInfo, collection.UpdateRule)
+	if err != nil {
+		return httpx.Error(e)
+	}
+	if !allowed {
+		return o.userDenied(e, record)
+	}
+
+	// Changing another user's email or password needs manage access.
+	if record.Id != session.UserID && (changesEmail(rawBody, record) || changesPassword(rawBody)) {
+		allowed, err := o.App.CanAccessRecord(record, requestInfo, collection.ManageRule)
+		if err != nil {
+			return httpx.Error(e)
+		}
+		if !allowed {
+			return o.userDenied(e, record)
+		}
 	}
 
 	if o.Store.EmailTakenByAnotherUser(body.UserName, body.ID) {
@@ -169,6 +232,9 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 			return httpx.FailDetails(e, http.StatusBadRequest, "cannot-find-user-to-update",
 				"Cannot find user "+body.UserName+" to update")
 		}
+		if errors.Is(err, store.ErrOwnerInvariant) {
+			return httpx.FailDetails(e, http.StatusBadRequest, "cannot-modify-owner", err.Error())
+		}
 		if reason := fieldReason(err); reason != "" {
 			return httpx.Fail(e, http.StatusBadRequest, reason)
 		}
@@ -180,13 +246,41 @@ func (o Options) adminUpdateUser(e *core.RequestEvent) error {
 	}{ID: body.ID}})
 }
 
+// userDenied writes the forbid response, keeping the friendlier reason for the
+// owner.
+func (o Options) userDenied(e *core.RequestEvent, record *core.Record) error {
+	if record.GetBool("owner") {
+		return httpx.FailDetails(e, http.StatusForbidden, "cannot-modify-owner",
+			"The server owner cannot be changed this way")
+	}
+
+	return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
+}
+
+// changesEmail reports whether the request body sets a different email.
+func changesEmail(body map[string]any, record *core.Record) bool {
+	// PocketBase's API uses "email"; our admin route uses "userName".
+	value, ok := body["email"].(string)
+	if !ok {
+		value, ok = body["userName"].(string)
+	}
+	if !ok {
+		return false
+	}
+
+	return value != record.GetString("email")
+}
+
+// changesPassword reports whether the request body sets a password.
+func changesPassword(body map[string]any) bool {
+	value, ok := body["password"].(string)
+	return ok && value != ""
+}
+
 func (o Options) adminDeleteUsers(e *core.RequestEvent) error {
 	session := o.Auth.ResolveSession(e, "")
 	if session == nil {
 		return nil
-	}
-	if !o.Store.IsAdmin(session.UserID) {
-		return httpx.FailDetails(e, http.StatusForbidden, "forbidden", "permission-not-found")
 	}
 
 	body := struct {
@@ -196,36 +290,38 @@ func (o Options) adminDeleteUsers(e *core.RequestEvent) error {
 		return err
 	}
 
-	ownerID := o.Store.OwnerID()
+	collection, err := o.App.FindCachedCollectionByNameOrId("users")
+	if err != nil {
+		return httpx.Error(e)
+	}
+	requestInfo := &core.RequestInfo{
+		Auth:   session.Record,
+		Body:   map[string]any{},
+		Method: http.MethodDelete,
+	}
+
 	deleted := 0
 
 	for _, id := range body.IDs {
-		if id == "" || id == ownerID {
-			continue
-		}
-		if !o.Store.UserExists(id) {
+		if id == "" {
 			continue
 		}
 
-		// Files do not cascade, so hand them to the owner before the delete.
-		if ownerID == "" {
+		record, err := o.App.FindRecordById("users", id)
+		if err != nil {
 			continue
 		}
-		err := o.App.RunInTransaction(func(txApp core.App) error {
-			txStore := o.Store.With(txApp)
-			if err := txStore.TransferFiles(id, ownerID); err != nil {
-				return err
-			}
-			if err := txStore.DeleteAllUserAccess(id); err != nil {
-				return err
-			}
-			ok, err := txStore.DeleteUser(id)
-			if err != nil || !ok {
-				return errors.New("user not deleted")
-			}
-			return nil
-		})
+
+		allowed, err := o.App.CanAccessRecord(record, requestInfo, collection.DeleteRule)
 		if err != nil {
+			return httpx.Error(e)
+		}
+		if !allowed {
+			return o.userDenied(e, record)
+		}
+
+		// The delete hook moves this user's files to the owner.
+		if err := o.App.Delete(record); err != nil {
 			continue
 		}
 		deleted++

@@ -87,7 +87,8 @@ async function deleteAllUsers(
 }
 
 async function addUser(
-  user: Omit<UserEntity, 'id'>,
+  // The owner flag is server-owned and must never be sent.
+  user: Omit<UserEntity, 'owner'>,
 ): Promise<{ error: string } | { id: string }> {
   const userToken = await asyncStorage.getItem('user-token');
 
@@ -107,7 +108,7 @@ async function addUser(
 }
 
 async function updateUser(
-  user: Omit<UserEntity, 'id'>,
+  user: Omit<UserEntity, 'owner'>,
 ): Promise<{ error: string } | { id: string }> {
   const userToken = await asyncStorage.getItem('user-token');
 

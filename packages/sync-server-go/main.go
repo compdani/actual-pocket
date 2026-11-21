@@ -65,6 +65,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{Automigrate: false})
 
 	store := store.New(app)
+	store.RegisterUserHooks(app)
 	auth.RegisterMaintenance(app, store)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
