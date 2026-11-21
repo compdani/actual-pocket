@@ -15,6 +15,7 @@ type FileDialogOptions = {
 
 type Actual = {
   IS_DEV: boolean;
+  IS_WAILS?: boolean;
   ACTUAL_VERSION: string;
   openURLInBrowser: (url: string) => void;
   openInFileManager: (filepath: string) => void;

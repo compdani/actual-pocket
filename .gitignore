@@ -24,6 +24,9 @@ packages/api/test-results
 packages/api/playwright-report
 packages/crdt/dist
 packages/desktop-client/build-stats
+packages/desktop-client/build-wails
+packages/desktop-wails/frontend/dist
+packages/desktop-wails/dist
 packages/desktop-client/dev-dist
 packages/desktop-client/public/kcab
 packages/desktop-client/locale

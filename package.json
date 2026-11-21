@@ -39,6 +39,8 @@
     "build:server": "yarn build:browser && yarn workspace @actual-app/sync-server build",
     "build:browser": "./bin/package-browser",
     "build:desktop": "./bin/package-electron",
+    "build:desktop:wails": "node ./bin/package-wails.mjs",
+    "start:desktop:wails": "node ./bin/package-wails.mjs --run",
     "build:plugins-service": "yarn workspace plugins-service build",
     "build:api": "yarn build --scope=@actual-app/api",
     "build:mobile": "yarn build --scope=mobile-client",

@@ -120,6 +120,21 @@ docker compose -f docker-compose.dev.yml up --build
 
 The development frontend runs at **http://localhost:3001**. This is separate from the production deployment above.
 
+## Wails Desktop Preview
+
+The Wails desktop preview reuses the browser budgeting engine and connects to
+the Go/PocketBase server. With the development dependencies installed, build
+and launch it from the repository root:
+
+```sh
+yarn start:desktop:wails
+```
+
+Use `yarn build:desktop:wails` to build without launching. See the
+[Wails desktop guide](packages/desktop-wails/README.md) for platform prerequisites,
+budget migration, output locations, and first-version limits. Electron remains
+available through the existing desktop commands during migration.
+
 ## Documentation
 
 The [documentation source](packages/docs/docs/index.md) is inherited from Actual Budget. Budgeting guides and technical references remain useful, but upstream downloads, hosted services, releases, community links, and historical announcements refer to the original project. They do not distribute or provide support for this fork.

@@ -2,7 +2,7 @@
 
 import * as connection from '#platform/server/connection';
 import * as db from '#server/db';
-import { incrFetch, whereIn } from '#server/db/util';
+import { whereIn } from '#server/db/util';
 import { batchMessages } from '#server/sync';
 import type { Diff } from '#shared/util';
 import type { PayeeEntity, TransactionEntity } from '#types/models';
@@ -25,16 +25,21 @@ async function idsWithChildren(ids: string[]) {
 async function getTransactionsByIds(
   ids: string[],
 ): Promise<TransactionEntity[]> {
-  // TODO: convert to whereIn
-  //
-  // or better yet, use ActualQL
-  return incrFetch(
-    (query, params) => db.selectWithSchema('transactions', query, params),
-    ids,
-
-    id => `id = '${id}'`,
-    where => `SELECT * FROM v_transactions_internal WHERE ${where}`,
-  );
+  const uniqueIds = [...new Set(ids)];
+  const transactions: TransactionEntity[] = [];
+  // A long OR chain builds a deeply recursive SQLite expression tree and
+  // overflows WebKit's WASM stack during imports and demo creation. IN keeps
+  // it shallow; bounded parameter lists also work on older SQLite builds.
+  for (let offset = 0; offset < uniqueIds.length; offset += 500) {
+    const batch = uniqueIds.slice(offset, offset + 500);
+    const rows = await db.selectWithSchema(
+      'transactions',
+      `SELECT * FROM v_transactions_internal WHERE id IN (${batch.map(() => '?').join(',')})`,
+      batch,
+    );
+    transactions.push(...rows);
+  }
+  return transactions;
 }
 
 export async function batchUpdateTransactions({

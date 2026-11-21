@@ -19,3 +19,7 @@ export function isElectron() {
   }
   return false;
 }
+
+export function isWails() {
+  return typeof window !== 'undefined' && window.Actual?.IS_WAILS === true;
+}

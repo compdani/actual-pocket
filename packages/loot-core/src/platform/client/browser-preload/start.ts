@@ -34,6 +34,8 @@ export type StartBackendOptions = {
    * Typically wired to platform flags (e.g. Playwright tests, iOS).
    */
   forceDirectWorker?: boolean;
+  /** Native WebViews may not support cross-origin isolation. */
+  allowSharedArrayBufferFallback?: boolean;
 };
 
 export type StartBackendHandle = Worker | WorkerBridge;
@@ -54,7 +56,10 @@ export function startBrowserBackend(
   // Capacitor serves the app from a custom URL scheme, which WebKit never
   // treats as cross-origin isolated, so SharedArrayBuffer is unavailable in
   // the native mobile app. Always run it in the fallback mode there.
-  if (Platform.isNativeMobileApp) {
+  if (
+    Platform.isNativeMobileApp ||
+    (opts.allowSharedArrayBufferFallback && !window.SharedArrayBuffer)
+  ) {
     localStorage.setItem('SharedArrayBufferOverride', 'true');
   }
 

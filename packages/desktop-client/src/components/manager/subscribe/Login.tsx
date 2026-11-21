@@ -9,7 +9,7 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
-import { isElectron } from '@actual-app/core/shared/environment';
+import { isElectron, isWails } from '@actual-app/core/shared/environment';
 import * as Platform from '@actual-app/core/shared/platform';
 
 import { useAvailableLoginMethods } from '#components/ServerContext';
@@ -28,7 +28,7 @@ import { Title, useBootstrapped } from './common';
 // this page. (window.open would be popup-blocked, since the click's user
 // gesture has expired by the time the sign-in request resolves.)
 async function getOpenIdReturnUrl() {
-  if (isElectron()) {
+  if (isElectron() || isWails()) {
     return window.Actual.startOAuthServer();
   }
   if (Platform.isNativeMobileApp) {
@@ -133,7 +133,7 @@ function OpenIdLogin({ setError }) {
       return;
     }
 
-    if (isElectron()) {
+    if (isElectron() || isWails()) {
       window.Actual?.openURLInBrowser(redirectUrl);
     } else {
       window.location.assign(redirectUrl);

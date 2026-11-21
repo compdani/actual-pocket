@@ -40,6 +40,12 @@ module.exports = {
       cache: false,
       weight: CONCURRENCY,
     },
+    'build:wails': {
+      type: 'npmScript',
+      dependsOn: ['^build'],
+      cache: false,
+      weight: CONCURRENCY,
+    },
     'mobile-client#build': {
       type: 'npmScript',
       dependsOn: ['^build', '@actual-app/web#build:mobile'],

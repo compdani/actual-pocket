@@ -12,6 +12,7 @@
   ],
   "imports": {
     "#browser-preload": {
+      "wails": "./src/browser-preload.wails.ts",
       "electron-renderer": "./src/browser-preload.electron.ts",
       "mobile": "./src/browser-preload.mobile.ts",
       "default": "./src/browser-preload.js"
@@ -142,6 +143,7 @@
     "build": "vite build",
     "build:browser": "vite build --mode=browser",
     "build:mobile": "vite build --mode=mobile",
+    "build:wails": "vite build --mode=wails",
     "generate:i18n": "i18next",
     "test": "vitest --run",
     "validate:theme-catalog": "node --experimental-strip-types bin/validate-theme-catalog.mts",

@@ -322,7 +322,9 @@ export default defineConfig(async ({ mode, command }) => {
           ? 'build-electron'
           : mode === 'mobile'
             ? 'build-mobile'
-            : 'build',
+            : mode === 'wails'
+              ? 'build-wails'
+              : 'build',
       assetsDir: 'static',
       manifest: true,
       assetsInlineLimit: 0,
@@ -366,12 +368,16 @@ export default defineConfig(async ({ mode, command }) => {
       },
     },
     resolve: {
+      ...(mode === 'wails' && {
+        conditions: ['wails', 'module', 'browser', 'default'],
+      }),
       // The native mobile (Capacitor) apps get their own preload.
       ...(mode === 'mobile' && {
         conditions: ['mobile', 'module', 'browser', 'default'],
       }),
       ...(mode !== 'browser' &&
-        mode !== 'mobile' && {
+        mode !== 'mobile' &&
+        mode !== 'wails' && {
           conditions: ['electron-renderer', 'module', 'browser', 'default'],
         }),
       tsconfigPaths: true,
@@ -413,6 +419,9 @@ export default defineConfig(async ({ mode, command }) => {
               navigateFallback: '/index.html',
               maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
               navigateFallbackDenylist: [
+                // PocketBase serves its own dashboard and API on this origin.
+                /^\/_(?:\/|$)/,
+                /^\/api(?:\/|$)/,
                 /^\/account\/.*$/,
                 /^\/admin\/.*$/,
                 /^\/secret\/.*$/,

@@ -19,6 +19,7 @@ const backendWorkerUrl = new URL('./browser-server.js', import.meta.url);
 // everything else.
 
 const IS_DEV = import.meta.env.DEV;
+const IS_WAILS = import.meta.env.MODE === 'wails';
 const ACTUAL_VERSION = computeClientVersion({
   isPlaywright: Platform.isPlaywright,
   reviewId: import.meta.env.REACT_APP_REVIEW_ID,
@@ -42,6 +43,11 @@ const isOpenIdCallback = window.location.pathname
 // Which engine the backend uses for budget files: `?storage=opfs` once, or
 // the choice stored by the experimental setting. Resolved on the main
 // thread because the worker needs it in its init message.
+// Native WebViews do not always support SharedArrayBuffer. Prefer the modern
+// browser engine (OPFS, with IndexedDB fallback) for new Wails installations.
+if (IS_WAILS && localStorage.getItem('actual:storage-backend') == null) {
+  localStorage.setItem('actual:storage-backend', 'opfs');
+}
 const storageBackend = resolveStorageBackend();
 
 // *** Start the backend ***
@@ -66,7 +72,9 @@ const worker = startBrowserBackend({
     Platform.isPlaywright ||
     Platform.isIOS ||
     Platform.isAndroid ||
+    IS_WAILS ||
     isOpenIdCallback,
+  allowSharedArrayBufferFallback: IS_WAILS,
 });
 
 // Ask the browser to exclude this origin's storage (the local budget database
@@ -102,7 +110,7 @@ const isUpdateReadyForDownloadPromise = new Promise(resolve => {
 // register one itself. Without a SW, applyAppUpdate() falls back to a plain
 // reload so callers don't hang on its never-resolving promise.
 const updateSW =
-  IS_DEV || Platform.isNativeMobileApp
+  IS_DEV || Platform.isNativeMobileApp || IS_WAILS
     ? () => window.location.reload()
     : registerSW({
         immediate: true,
@@ -111,6 +119,7 @@ const updateSW =
 
 global.Actual = {
   IS_DEV,
+  IS_WAILS,
   ACTUAL_VERSION,
 
   logToTerminal: (...args) => {

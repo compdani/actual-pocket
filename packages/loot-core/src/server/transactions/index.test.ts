@@ -7,6 +7,24 @@ import { batchUpdateTransactions } from './index';
 beforeEach(global.emptyDatabase());
 
 describe('batchUpdateTransactions', () => {
+  it('returns every transaction in a large import, including IDs with quotes', async () => {
+    await db.insertAccount({ id: 'import-account', name: 'Import account' });
+    const added = Array.from({ length: 525 }, (_, index) => ({
+      id: index === 524 ? "import-with-quote's-id" : `import-${index}`,
+      account: 'import-account',
+      amount: index,
+      date: '2026-01-01',
+    }));
+    const result = await batchUpdateTransactions({
+      added,
+      runTransfers: false,
+    });
+    expect(result.added.map(transaction => transaction.id)).toEqual(
+      added.map(transaction => transaction.id),
+    );
+    expect(result.errors).toEqual([]);
+  });
+
   it('returns the added, updated and deleted transactions separately', async () => {
     await db.insertAccount({ id: 'one', name: 'one' });
     await db.insertTransaction({
