@@ -8,7 +8,7 @@ import (
 func TestNotPortedBankSyncStatus(t *testing.T) {
 	h := newHarness(t)
 
-	for _, provider := range []string{"pluggyai", "akahu", "gocardless"} {
+	for _, provider := range []string{"akahu", "gocardless"} {
 		response := h.postJSON(t, "/"+provider+"/status", nil, h.adminToken)
 		if response.Code != 200 {
 			t.Fatalf("%s status = %d, body = %q", provider, response.Code, response.Body.String())
