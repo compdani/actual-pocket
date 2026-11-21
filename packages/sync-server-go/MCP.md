@@ -1,6 +1,8 @@
 # MCP access to the Go sync server
 
-PocketBase MCP clients connect with a PocketBase superuser. Create one with:
+Use a non-superuser account for MCP where the client and the required operations
+support it. Some clients require a PocketBase superuser. To create one for a
+trusted client:
 
 ```bash
 ./actual-server superuser upsert mcp@localhost '<password>'
@@ -17,8 +19,9 @@ curl -X POST http://localhost:5006/api/collections/_superusers/impersonate/<id> 
 ```
 
 All `actual_*` collections have `nil` API rules, which means **superusers
-only**. The `users` collection keeps the owner > ADMIN > BASIC rules, and no MCP
-path bypasses them.
+only**. For ordinary user accounts, the `users` collection enforces the
+owner > ADMIN > BASIC hierarchy. PocketBase superusers bypass collection API
+rules. The server's user model hooks still enforce owner invariants.
 
 ## Collections
 
@@ -42,14 +45,18 @@ Read-only columns: `id`, `name`, `owner`, `owner_email`, `owner_name`,
 
 ## Redaction
 
-`ACTUAL_MCP_REDACT_SECRETS` defaults to **true**. While on, an
-`OnRecordEnrich` hook blanks `actual_secrets.value`, `actual_api_keys.key_hash`
-and `actual_pending_oauth.code_verifier` in every PocketBase REST/realtime/MCP
-response, **including superuser responses**. Server-side code reads through the
-Go store directly, so it still sees the real values.
+`ACTUAL_MCP_REDACT_SECRETS` defaults to **true**. It hides
+`actual_secrets.value`, `actual_api_keys.key_hash`, and
+`actual_pending_oauth.code_verifier` from record responses, including those
+sent to superusers. It also rejects direct record-list filters and sorts
+that reference those fields. Saving a record with a blank redacted field
+preserves its stored value. The Go server still reads the values it needs.
 
-Set it to `false` only for a trusted local MCP client that must inspect hashes.
-Secrets are still hidden from non-superusers by the collection schema.
+Redaction prevents accidental display. A full superuser can still access
+secrets through direct SQL where enabled, custom view collections, or backup
+downloads. Use a non-superuser account with only the required permissions
+where possible. Set `ACTUAL_MCP_REDACT_SECRETS=false` only if a trusted client
+needs to inspect the fields in record responses.
 
 ## Safe edits
 

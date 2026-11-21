@@ -448,3 +448,15 @@ func TestMCPRedactSecretsDefaultAndOverride(t *testing.T) {
 		t.Error("MCPRedactSecrets = true with ACTUAL_MCP_REDACT_SECRETS=false")
 	}
 }
+
+func TestMCPRedactionEnvOverridesConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, filepath.Join(dir, "config.json"), `{"mcpRedactSecrets":true}`)
+	cfg, err := load(t, dir, map[string]string{"ACTUAL_MCP_REDACT_SECRETS": "false"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MCPRedactSecrets {
+		t.Fatal("config file overrode the environment setting")
+	}
+}

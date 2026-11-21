@@ -59,7 +59,7 @@ type Config struct {
 	// SimpleFINAllowedNetworks lists private networks a SimpleFIN server may
 	// live in.
 	SimpleFINAllowedNetworks []netip.Prefix
-	// MCPRedactSecrets blanks hidden secret fields in PocketBase REST/MCP
+	// MCPRedactSecrets hides sensitive fields in PocketBase REST/MCP
 	// responses. Defaults to true.
 	MCPRedactSecrets bool
 	// ConfigPath is the config.json that was loaded, if any.
@@ -117,6 +117,7 @@ var fileSettings = []string{
 	"upload.syncEncryptedFileSizeLimitMB",
 	"upload.fileSizeLimitMB",
 	"userCreationMode",
+	"mcpRedactSecrets",
 	"github.token",
 	"corsProxy.enabled",
 	"https.key",

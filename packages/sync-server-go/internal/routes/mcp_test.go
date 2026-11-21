@@ -1,11 +1,15 @@
 package routes
 
 import (
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
+
+	"github.com/compdani/actual-pocket/packages/sync-server-go/internal/store"
 )
 
 func TestActualFilesOverviewView(t *testing.T) {
@@ -114,27 +118,56 @@ func TestMCPRedactionHidesSecretsFromSuperusers(t *testing.T) {
 	}
 
 	for _, testCase := range []struct {
-		path   string
-		field  string
-		value  string
-		record string
+		path       string
+		field      string
+		value      string
+		collection string
 	}{
-		{"/api/collections/actual_secrets/records/" + secretRecord.Id, "value", "super-secret-token", secretRecord.Id},
-		{"/api/collections/actual_api_keys/records/" + apiKeyRecord.Id, "key_hash", secret, apiKeyRecord.Id},
-		{"/api/collections/actual_pending_oauth/records/" + pending.Id, "code_verifier", "super-secret-verifier", pending.Id},
+		{"/api/collections/actual_secrets/records/" + secretRecord.Id, "value", "super-secret-token", "actual_secrets"},
+		{"/api/collections/actual_api_keys/records/" + apiKeyRecord.Id, "key_hash", store.HashToken(secret), "actual_api_keys"},
+		{"/api/collections/actual_pending_oauth/records/" + pending.Id, "code_verifier", "super-secret-verifier", "actual_pending_oauth"},
 	} {
 		response := h.pbRequest(t, "GET", testCase.path, nil, token)
 		if response.Code != 200 {
 			t.Fatalf("%s: status = %d, body = %q", testCase.path, response.Code, response.Body.String())
 		}
-		body := string(response.Body.Bytes())
-		if strings.Contains(body, testCase.value) {
-			t.Errorf("%s leaked %q: %s", testCase.field, testCase.value, body)
+		if strings.Contains(response.Body.String(), testCase.value) {
+			t.Errorf("%s was exposed in the record", testCase.field)
+		}
+		list := "/api/collections/" + testCase.collection + "/records"
+		for _, query := range []url.Values{
+			{"filter": {testCase.field + " != ''"}},
+			{"sort": {"-" + testCase.field}},
+		} {
+			response := h.pbRequest(t, http.MethodGet, list+"?"+query.Encode(), nil, token)
+			if response.Code != http.StatusBadRequest {
+				t.Errorf("list on hidden field %s = %d", testCase.field, response.Code)
+			}
+		}
+
+		response = h.pbRequest(t, http.MethodPatch, testCase.path, map[string]string{testCase.field: ""}, token)
+		if response.Code != http.StatusOK {
+			t.Errorf("saving redacted field %s = %d %s", testCase.field, response.Code, response.Body)
+		}
+		id := testCase.path[strings.LastIndex(testCase.path, "/")+1:]
+		saved, err := h.app.FindRecordById(testCase.collection, id)
+		if err != nil || saved.GetString(testCase.field) != testCase.value {
+			t.Errorf("saving redacted field %s changed the stored value: %v", testCase.field, err)
+		}
+	}
+
+	for _, query := range []url.Values{
+		{"filter": {"name = 'simplefin_token'"}, "sort": {"-created"}},
+		{"filter": {"name = 'value'"}},
+	} {
+		response := h.pbRequest(t, http.MethodGet, "/api/collections/actual_secrets/records?"+query.Encode(), nil, token)
+		if response.Code != http.StatusOK {
+			t.Errorf("safe list query = %d %s", response.Code, response.Body)
 		}
 	}
 
 	// Internal reads are not enriched, so the server still sees the value.
 	if value, ok, err := h.store.Secret("simplefin_token", ""); err != nil || !ok || value != "super-secret-token" {
-		t.Errorf("internal secret = %q, %v, %v", value, ok, err)
+		t.Errorf("internal secret no longer matches: found %v, error %v", ok, err)
 	}
 }
