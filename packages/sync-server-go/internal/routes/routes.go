@@ -63,7 +63,11 @@ func Register(se *core.ServeEvent, opts Options) {
 	actual.Bind(limiter.Handler())
 
 	registerMeta(actual, cfg, opts.Version)
-	banks.Register(actual, opts.Auth)
+	banks.Register(actual, banks.Options{
+		Store:  opts.Store,
+		Auth:   opts.Auth,
+		Config: opts.Config,
+	})
 	registerSync(actual, opts)
 	registerAccount(actual, opts)
 	registerOAuth2(actual, opts)
