@@ -270,7 +270,7 @@ func (o Options) login(e *core.RequestEvent) error {
 		return httpx.Fail(e, http.StatusBadRequest, "user-disabled")
 	}
 
-	token, err := record.NewAuthToken()
+	token, err := o.Auth.IssueToken(record)
 	if err != nil {
 		return httpx.Error(e)
 	}
@@ -335,7 +335,7 @@ func (o Options) changePassword(e *core.RequestEvent) error {
 	}
 
 	// ...so hand the current device a token signed with the new key.
-	token, err := session.Record.NewAuthToken()
+	token, err := o.Auth.IssueToken(session.Record)
 	if err != nil {
 		return httpx.Error(e)
 	}

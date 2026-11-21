@@ -66,7 +66,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	store := store.New(app)
 	store.RegisterUserHooks(app)
-	auth.RegisterMaintenance(app, store)
+	resolver := auth.NewResolver(app, store)
+	auth.RegisterMaintenance(app, store, resolver)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		// Electron and Docker health checks wait for this exact line.
@@ -88,7 +89,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 			Stdout:  stdout,
 			Store:   store,
 			Sync:    syncEngine,
-			Auth:    auth.NewResolver(app, store),
+			Auth:    resolver,
 		})
 
 		return se.Next()

@@ -30,11 +30,12 @@ import (
 
 // harness is a migrated PocketBase app plus the Actual routes bound to it.
 type harness struct {
-	app     core.App
-	store   *store.Store
-	engine  *syncdb.Engine
-	config  *config.Config
-	handler http.Handler
+	app      core.App
+	store    *store.Store
+	engine   *syncdb.Engine
+	config   *config.Config
+	handler  http.Handler
+	resolver *auth.Resolver
 
 	admin    *core.Record
 	user     *core.Record
@@ -154,7 +155,8 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUser
 		config: cfg,
 	}
 	h.store.RegisterUserHooks(app)
-	auth.RegisterMaintenance(app, h.store)
+	h.resolver = auth.NewResolver(app, h.store)
+	auth.RegisterMaintenance(app, h.store, h.resolver)
 
 	if withUsers {
 		h.admin = h.createUser(t, "admin@example.com", "admin-password", "ADMIN", true, true)
@@ -172,7 +174,7 @@ func newHarnessWithConfig(t *testing.T, configure func(*config.Config), withUser
 		options.App = app
 		options.Store = h.store
 		options.Sync = engine
-		options.Auth = auth.NewResolver(app, h.store)
+		options.Auth = h.resolver
 	})
 	h.handler = server.handler
 

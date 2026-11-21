@@ -58,6 +58,11 @@ type Resolver struct {
 
 	dummyOnce     sync.Once
 	dummyPassword *core.Record
+
+	// tokensMu guards lastTokenExp, the exp of the last token issued per user.
+	// It keeps two logins in the same second from sharing a token.
+	tokensMu     sync.Mutex
+	lastTokenExp map[string]int64
 }
 
 // NewResolver creates a resolver.
