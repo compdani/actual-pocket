@@ -56,10 +56,10 @@ These come from `CODE_REVIEW_GUIDELINES.md` and are non-negotiable unless the PR
 
 ## Commit / PR rules (from `.github/agents/pr-and-commit-rules.md`)
 
-These are mandatory for AI-authored PRs. Verify and flag misses as Important.
+Use the target repository's rules. For this Actual Pocket personal fork, verify:
 
-- Commit messages prefixed with `[AI]`.
-- PR title prefixed with `[AI]` (the `"AI generated"` label is auto-applied based on this prefix, so no need to verify it separately).
+- Ordinary, descriptive commit messages and PR titles without `[AI]` prefixes.
+- No `Co-authored-by` trailers or generated-by footers.
 - PR template **not** filled in (unless a human explicitly asked for it, in which case it must be in Chinese — yes, really).
 - No `--no-verify`, `--no-gpg-sign`, force-pushes to main, or destructive git ops.
 

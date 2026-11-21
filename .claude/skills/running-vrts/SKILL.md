@@ -92,8 +92,8 @@ Run all yarn commands from the repo root.
    `--update-snapshots`; it must pass.
 
 6. Optionally Read one generated PNG to sanity-check it shows the intended UI,
-   then commit the test + PNGs (commit messages need the `[AI]` prefix — see
-   the committing-actual-changes skill).
+   then commit the test + PNGs using the current repository commit rules. This
+   personal fork uses ordinary titles and no `Co-authored-by` trailers.
 
 ## Fallback without docker
 

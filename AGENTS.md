@@ -59,10 +59,11 @@ yarn start:desktop
 - Use `yarn workspace <workspace-name> run <command>` for workspace-specific tasks
 - Tests run once and exit by default (using `vitest --run`)
 
-### ⚠️ PR titles must start with `[AI]`
+### Commit and Pull Request Titles
 
-Every pull request title must be prefixed with `[AI]` — you have to apply it
-yourself. See [PR and Commit Rules](.github/agents/pr-and-commit-rules.md).
+Use ordinary, descriptive commit messages and pull request titles. Do not add
+`[AI]` prefixes or `Co-authored-by` trailers. See
+[PR and Commit Rules](.github/agents/pr-and-commit-rules.md).
 
 ### Task Orchestration with Lage
 
@@ -542,7 +543,7 @@ Before committing changes, ensure:
 
 ## Pull Request Guidelines
 
-See [PR and Commit Rules](.github/agents/pr-and-commit-rules.md) for complete PR creation rules, including title prefix requirements, labeling, the GitHub comment/review/issue 🤖 prefix, and PR template handling.
+See [PR and Commit Rules](.github/agents/pr-and-commit-rules.md) for complete PR creation rules, including commit attribution, the GitHub comment/review/issue 🤖 prefix, and PR template handling.
 
 ## Code Review Guidelines
 

@@ -2,17 +2,16 @@
 
 This file lists the PR and commit rules you have to apply yourself.
 
+## Commit Messages, Pull Request Titles, and Attribution
+
+This is Danilo Urrutia's personal fork. Use ordinary, descriptive commit messages
+and pull request titles. Do not add `[AI]` prefixes, `Co-authored-by` trailers,
+or generated-by footers. Keep the configured author identity.
+
+These rules apply to this fork. Contributions to the original Actual Budget
+project follow its own contribution policy.
+
 ## Pull Request Rules
-
-### `[AI]` prefix on PR titles
-
-**ALL pull request titles MUST be prefixed with `[AI]`** — you have to apply it
-yourself.
-
-**Examples:**
-
-- `[AI] Fix type error in account validation`
-- `Fix type error in account validation` (MISSING PREFIX — NOT ALLOWED)
 
 ### Do not fill in the PR template
 
@@ -38,8 +37,8 @@ commenting on them) remains allowed.
 **Prefix everything you post to GitHub with the robot emoji 🤖** — pull-request
 and issue comments, pull-request reviews (including inline review comments), and
 the title and body of issues you edit. This keeps agent-authored content
-visibly marked. It does **not** change PR titles (still `[AI] …`) or commit
-messages (still `[AI] …`).
+visibly marked. Commit messages and PR titles follow the ordinary-title and attribution rules
+above.
 
 Write the text normally; just make sure 🤖 is the first character (for issues,
 on both the title and the body).

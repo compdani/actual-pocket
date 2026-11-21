@@ -55,4 +55,6 @@ You are the author of the contribution. The AI is not.
 
 ## A note on automated AI agents
 
-This page is for human contributors who are using AI as an assistant. Autonomous AI agents operating directly on this repository (for example, via Claude Code or Cursor Agents) follow a separate set of rules — they must prefix commits and PR titles with `[AI]` and apply the `AI generated` label. Those rules live in [`AGENTS.md`](https://github.com/actualbudget/actual/blob/master/AGENTS.md) and [`.github/agents/pr-and-commit-rules.md`](https://github.com/actualbudget/actual/blob/master/.github/agents/pr-and-commit-rules.md).
+Actual Pocket is Danilo Urrutia's personal fork. Agents use ordinary, descriptive commit messages and pull request titles without `[AI]` prefixes, `Co-authored-by` trailers, or generated-by footers. See this fork's [`AGENTS.md`](https://github.com/compdani/actual-pocket/blob/master/AGENTS.md) and [commit rules](https://github.com/compdani/actual-pocket/blob/master/.github/agents/pr-and-commit-rules.md).
+
+The human contribution guidance above is inherited from upstream. This fork's [personal contribution policy](./index.md) applies: pull requests will most likely not be merged, and issues may or may not be fixed.
