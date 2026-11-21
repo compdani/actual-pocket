@@ -8,3 +8,23 @@
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Keep personal data and host build artifacts out of the image.
+data
+data2
+actual-data
+**/build
+**/dist
+**/lib-dist
+**/build-stats
+**/dev-dist
+**/test-results
+**/playwright-report
+**/.tsbuildinfo
+packages/desktop-client/locale
+.env
+.env.*
+
+packages/sync-server-go/actual-server
+packages/sync-server-go/data
+**/pb_data

@@ -7,6 +7,10 @@ body:
   - type: markdown
     attributes:
       value: |
+        This is Actual Pocket, Danilo Urrutia's personal fork of Actual Budget. Issues may or may not be fixed, and pull requests will most likely not be merged. Responses and support are not guaranteed. See the [contribution policy](https://github.com/compdani/actual-pocket/blob/master/CONTRIBUTING.md).
+  - type: markdown
+    attributes:
+      value: |
         Thanks for taking the time to fill out this feature request! Please ensure you provide as much information as possible so we can better understand what you're proposing so we can come up with the best solution for everyone.
   - type: checkboxes
     id: existing-issue
@@ -19,7 +23,7 @@ body:
   - type: checkboxes
     attributes:
       label: '💻'
-      description: (Optional) Please check this box if you're willing to open a PR to implement this feature. We'll help you get started and answer any questions you have along the way :)
+      description: (Optional) Indicate whether you plan to implement this yourself. Pull requests will most likely not be merged.
       options:
         - label: Would you like to implement this feature?
   - type: textarea

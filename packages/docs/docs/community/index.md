@@ -1,13 +1,11 @@
 # Getting Support
 
-:::note
+Actual Pocket is **Danilo Urrutia's personal fork** of [Actual Budget](https://github.com/actualbudget/actual).
 
-Actual is an open source app, which means that nobody is being paid to work on it, and everything is happening in our free time. Please keep that in mind when asking us for help :)
+**Issues may or may not be fixed, and pull requests will most likely not be merged.** There is no guaranteed response or support schedule. See the [contribution policy](../contributing/index.md).
 
-:::
+For deployment, read the [Docker quickstart](../install/docker.md). Fork-specific reports belong in [Actual Pocket's issue tracker](https://github.com/compdani/actual-pocket/issues).
 
-We are happy to help out with any issues you encounter with getting Actual running or using it. There are a few ways to get help:
+## Upstream Community
 
-- For questions about installing or using Actual, [join our Discord](https://discord.gg/8JfAXSgfRf) and make a new post [in the `#support` channel](https://discord.com/channels/937901803608096828/1027966372862505021)
-- If you'd like to report a bug or request a feature, [open a new issue on GitHub](https://github.com/actualbudget/actual/issues/new/choose). If you don't have a GitHub account, you can create one for free. Alternatively, you can post a message in Discord and we can create the issue for you.
-- If you see a problem with this documentation website, you can click the "Edit this page" button at the bottom of the page in question and then click the "edit" button on the GitHub page that opens to make edits directly from your browser. (See a [step-by-step guide here](https://docs.github.com/en/repositories/working-with-files/managing-files/editing-files)). If you don't have a GitHub account, it's free to create one, or you can tell us about the problem in Discord and we can make the edit for you.
+The original [Actual Budget community](https://actualbudget.org/docs/community/) provides resources for the upstream project. Its maintainers and community are not responsible for this fork. Report issues upstream only when you can reproduce them in the original project.

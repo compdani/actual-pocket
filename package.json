@@ -2,15 +2,15 @@
   "name": "actual",
   "version": "0.0.1",
   "private": true,
-  "description": "A local-first personal finance system",
-  "homepage": "https://github.com/actualbudget/actual/",
+  "description": "Actual Pocket, a personal fork of Actual Budget by Danilo Urrutia",
+  "homepage": "https://github.com/compdani/actual-pocket/",
   "bugs": {
-    "url": "https://github.com/actualbudget/actual/issues/"
+    "url": "https://github.com/compdani/actual-pocket/issues/"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git@github.com:actualbudget/actual.git"
+    "url": "git@github.com:compdani/actual-pocket.git"
   },
   "workspaces": {
     "packages": [
@@ -70,6 +70,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@actual-app/api": "workspace:*",
     "@monorepo-utils/workspaces-to-typescript-project-references": "^2.11.0",
     "@octokit/rest": "^22.0.1",
     "@types/node": "^22.20.5",
@@ -89,6 +90,7 @@
     "oxlint": "^1.88.0",
     "oxlint-tsgolint": "^7.0.2004",
     "p-limit": "^7.3.3",
+    "playwright-core": "1.61.1",
     "prompts": "^2.4.2",
     "typescript": "^6.0.3",
     "vitest": "^5.0.4"

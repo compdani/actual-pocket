@@ -1,0 +1,7 @@
+# Development image. Use docker-compose.dev.yml for the source mount.
+FROM node:24.22.1-bookworm AS dev
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY . .
+CMD ["sh", "./bin/docker-start"]

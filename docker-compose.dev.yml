@@ -1,0 +1,17 @@
+services:
+  actual-development:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: actual-pocket-dev
+    environment:
+      - HTTPS
+    ports:
+      - '3001:3001'
+    volumes:
+      - '.:/app'
+      - actual-dev-node-modules:/app/node_modules
+    restart: 'no'
+
+volumes:
+  actual-dev-node-modules:

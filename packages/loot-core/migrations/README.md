@@ -1,5 +1,7 @@
 # Database migrations
 
+> This package is part of Actual Pocket, Danilo Urrutia's personal fork of [Actual Budget](https://github.com/actualbudget/actual). Pull requests will most likely not be merged, and issues may or may not be fixed. See the [fork policy](../../../CONTRIBUTING.md). Upstream package downloads and community links refer to the original project.
+
 Actual upgrades local budget databases by running the SQL and JavaScript files in this directory in timestamp order. Each file name must start with a numeric id (typically the authoring timestamp in milliseconds), followed by a short description.
 
 ## Cross-version sync

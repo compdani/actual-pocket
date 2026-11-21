@@ -40,14 +40,12 @@ function useGetUserDirectoryErrors() {
         case 'token-expired':
           return t('Login expired, please log in again.');
         case 'user-cant-be-empty':
-          return t(
-            'Please enter a value for the username; the field cannot be empty.',
-          );
+          return t('Please enter an email address; the field cannot be empty.');
         case 'role-cant-be-empty':
           return t('Select a role; the field cannot be empty.');
         case 'user-already-exists':
           return t(
-            'The username you entered already exists. Please choose a different username.',
+            'A user with this email address already exists. Please choose a different one.',
           );
         case 'not-all-deleted':
           return t(

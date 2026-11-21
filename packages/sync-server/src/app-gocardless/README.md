@@ -1,5 +1,7 @@
 # Integration new bank
 
+> This package is part of Actual Pocket, Danilo Urrutia's personal fork of [Actual Budget](https://github.com/actualbudget/actual). Pull requests will most likely not be merged, and issues may or may not be fixed. See the [fork policy](../../../../CONTRIBUTING.md). Upstream package downloads and community links refer to the original project.
+
 If the default bank integration does not work for you, you can integrate a new bank by following these steps.
 
 1. Find the identifier of the bank which you want to integrate. Note: the reference sheet that previously contained bank identifiers no longer exists.

@@ -2,6 +2,23 @@
 
 This guide provides comprehensive information for AI agents (like Cursor) working with the Actual Budget codebase.
 
+## Personal Fork
+
+This repository is Actual Pocket, Danilo Urrutia's personal fork of [Actual Budget](https://github.com/actualbudget/actual). Pull requests will most likely not be merged, and issues may or may not be fixed. See [CONTRIBUTING.md](CONTRIBUTING.md). The default Docker deployment uses `packages/sync-server-go/` (Go + PocketBase), not the legacy Node server. Upstream community and release references below describe the original project.
+
+## Fork Backend Commands
+
+Run these from the repository root:
+
+```sh
+make -C packages/sync-server-go build
+go -C packages/sync-server-go test ./...
+go -C packages/sync-server-go vet ./...
+NODE_ENV=development go -C packages/sync-server-go run .
+```
+
+Run `yarn start` separately for the development frontend. The inherited Node backend commands below remain for legacy code and Electron; Docker uses Go/PocketBase.
+
 ## Project Overview
 
 **Actual Budget** is a local-first personal finance tool written in TypeScript/JavaScript. It's 100% free and open-source with synchronization capabilities across devices.

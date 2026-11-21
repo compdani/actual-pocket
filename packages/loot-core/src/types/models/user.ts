@@ -3,6 +3,11 @@ export type NewUserEntity = {
   displayName: string;
   role: string;
   enabled: boolean;
+  /**
+   * Optional password to set for the user. Leave it out to keep an existing
+   * user's password or to create an OAuth2-only user.
+   */
+  password?: string;
 };
 
 export type UserEntity = {

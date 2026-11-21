@@ -4,7 +4,11 @@ sidebar_position: 1
 title: 'Introduction'
 ---
 
-Welcome to Actual's documentation!
+Welcome to Actual Pocket's documentation. Actual Pocket is **Danilo Urrutia's personal fork** of [Actual Budget](https://github.com/actualbudget/actual), originally created by James Long and developed by the Actual Budget community.
+
+These guides are inherited from upstream. Links to upstream downloads, hosting providers, communities, and release announcements describe the original project. They do not provide this fork or guarantee support for it.
+
+For deployment of this fork, start with the [Docker guide](./install/docker.md).
 
 ## How to Get Around
 
@@ -24,6 +28,4 @@ For help and support, [reach out to the maintainers and community](community/ind
 
 ## Want to Contribute?
 
-The Actual application is actively maintained and updated by a dedicated group of contributors and maintainers who do their best to keep these documents synchronized with the changes. If you notice anything incorrect you can [open an issue](https://github.com/actualbudget/actual/issues/new/choose) in github or note it in the [`#Documentation` channel](https://discord.com/channels/937901803608096828/1027831463103696928) in Discord.
-
-If you'd like to contribute to Actual Budget's documentation, start by reading the documentation standards, local setup, and guidelines on using images and screenshots located in the [contributing guide](./contributing/writing-docs.md) and in the documentation's [github README file](https://github.com/actualbudget/actual/tree/master/packages/docs#actual-budget-community-documentation). We use Docusaurus to build our website. You can click on _Edit this page_ at the bottom left of every page to open that page's Markdown document.
+This is a personal fork. **Pull requests will most likely not be merged, and issues may or may not be fixed.** See the [contribution policy](./contributing/index.md) before spending time on a change. Reviews, responses, fixes, and releases are not guaranteed.

@@ -2,7 +2,7 @@
 title: Development Setup
 ---
 
-This guide will help you set up your development environment for contributing to Actual.
+This guide helps you develop Actual Pocket, Danilo Urrutia's personal fork of Actual Budget. Read the [fork contribution policy](./index.md) first: pull requests will most likely not be merged, and issues may or may not be fixed.
 
 ## Prerequisites
 
@@ -19,6 +19,8 @@ Before you begin, ensure you have the following installed:
 - **Yarn**: Version 4.9.1 or greater. Yarn is the package manager used by Actual.
   - The project uses Yarn 4 workspaces (monorepo structure).
 
+- **Go**: Version 1.27 or greater for the PocketBase backend.
+
 - **Git**: Required for cloning the repository and version control.
 
 ## Initial Setup
@@ -26,8 +28,8 @@ Before you begin, ensure you have the following installed:
 1. Clone the Actual repository:
 
    ```bash
-   git clone https://github.com/actualbudget/actual.git
-   cd actual
+   git clone https://github.com/compdani/actual-pocket.git
+   cd actual-pocket
    ```
 
 2. Install all dependencies:
@@ -45,7 +47,7 @@ Before you begin, ensure you have the following installed:
 
 ## Dev Container
 
-The repo includes a [`.devcontainer/`](https://github.com/actualbudget/actual/tree/master/.devcontainer) configuration that follows the [Dev Containers spec](https://containers.dev/). Any tool that supports the spec can use it — for example VS Code or Cursor (with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)), JetBrains IDEs (via Gateway), GitHub Codespaces, or the [`@devcontainers/cli`](https://github.com/devcontainers/cli).
+The repo includes a [`.devcontainer/`](https://github.com/compdani/actual-pocket/tree/master/.devcontainer) configuration that follows the [Dev Containers spec](https://containers.dev/). Any tool that supports the spec can use it — for example VS Code or Cursor (with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)), JetBrains IDEs (via Gateway), GitHub Codespaces, or the [`@devcontainers/cli`](https://github.com/devcontainers/cli).
 
 In an editor that supports the spec, open the cloned repo and accept the **Reopen in Container** prompt (or run the equivalent command from your editor's command palette). The container will build, `yarn install` will run automatically via `postCreateCommand`, and you'll be dropped into a shell with the toolchain ready.
 
@@ -62,13 +64,13 @@ The dev server will be available at `http://localhost:3001/`. Most editors autom
 For other editors, run from the repo root:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 
 This starts a container that runs `yarn start:browser` on port 3001. Open `http://localhost:3001/` in your browser.
 
 :::note
-The container mounts your repo at `/app`. If you've already run `yarn install` on your host, the native modules (`better-sqlite3`, `bcrypt`, `electron`, `sharp`) will be compiled for your host OS and won't work inside the Linux container. Either delete `node_modules/` first and let the container reinstall, or run the dev container path above (which rebuilds them automatically).
+The development container mounts your repo at `/app` and uses a separate named volume for Linux dependencies, so host `node_modules` are not reused. For a production deployment with the sync server, use the [Docker guide](../install/docker.md).
 :::
 
 ## Essential Development Commands
@@ -112,12 +114,14 @@ yarn start
 # or explicitly:
 yarn start:browser
 
-# Start with sync server (for testing sync functionality)
-yarn start:server-dev
+# In a separate terminal, start the Go/PocketBase server
+NODE_ENV=development go -C packages/sync-server-go run .
 
 # Start desktop app development
 yarn start:desktop
 ```
+
+The Go development server listens on port 5006 and proxies the frontend to Vite on port 3001. Use port 5006 for the combined app. The inherited `yarn start:server-dev` and `yarn build:server` commands still target the legacy Node backend. Electron also retains its Node backend integration.
 
 ### Building
 
@@ -134,8 +138,8 @@ yarn build:api
 # Build CLI package
 yarn build:cli
 
-# Build sync server
-yarn build:server
+# Build the Go/PocketBase sync server
+make -C packages/sync-server-go build
 ```
 
 ## Workspace Structure

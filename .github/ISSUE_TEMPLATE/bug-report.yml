@@ -7,15 +7,17 @@ body:
   - type: markdown
     attributes:
       value: |
+        This is Actual Pocket, Danilo Urrutia's personal fork of Actual Budget. Issues may or may not be fixed, and pull requests will most likely not be merged. Responses and support are not guaranteed. See the [contribution policy](https://github.com/compdani/actual-pocket/blob/master/CONTRIBUTING.md).
+  - type: markdown
+    attributes:
+      value: |
         Thanks for taking the time to fill out this bug report! Please ensure you provide as much information as possible to better assist in confirming and identifying a fix for the bug.
 
         ⚠️ **CRITICAL:** Bug reports without clear, step-by-step reproduction instructions will be closed. We cannot investigate or fix bugs without being able to reproduce them. Please take the time to provide detailed reproduction steps.
   - type: markdown
     attributes:
       value: |
-        **IMPORTANT:** we use GitHub Issues only for BUG REPORTS and FEATURE REQUESTS. If you are looking for help/support - please reach out to the [community on Discord](https://discord.gg/pRYNYr4W5A). All non-bug and non-feature-request issues will be closed.
-
-        **Bank-sync problems (SimpleFin / GoCardless)?** Reach out via the [community Discord](https://discord.gg/pRYNYr4W5A) first and open an issue only if the community deems the issue to be a legitimate bug in Actual.
+        Report problems specific to this fork here. Upstream community channels are for the original Actual Budget project and do not provide support for this fork.
   - type: textarea
     id: what-happened
     attributes:

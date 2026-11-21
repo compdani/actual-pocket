@@ -1,83 +1,136 @@
+# Actual Pocket
+
+Actual Pocket is a personal fork of [Actual Budget](https://github.com/actualbudget/actual), maintained by **Danilo Urrutia** ([compdani](https://github.com/compdani)). Actual Budget was originally created by James Long and is developed by the Actual Budget community.
+
+This fork follows Danilo's personal needs and priorities. **Pull requests will most likely not be merged. Issues may or may not be fixed.** Reviews, responses, releases, and support are not guaranteed. See [Contributing](CONTRIBUTING.md).
+
+Actual is a free, open-source, local-first personal finance tool with optional synchronization between devices.
+
 <p align="center">
-  <img src="/demo.png" alt="Actualbudget" />
+  <img src="/demo.png" alt="Actual Budget interface" />
 </p>
 
-## Getting Started
+## Docker Quickstart
 
-Actual is a local-first personal finance tool. It is 100% free and open-source, written in NodeJS, it has a synchronization element so that all your changes can move between devices without any heavy lifting.
+Install Docker Engine with the Docker Compose plugin, or Docker Desktop. Run these commands from the repository root. Docker builds the web app and Go/PocketBase sync server from this fork; no local Node.js or Yarn installation is required. The first build downloads dependencies and translations and may take several minutes. The builder allows up to 8 GB for Node.js, so provide enough memory for the build.
 
-If you are interested in contributing, or want to know how development works, see our [contributing](https://actualbudget.org/docs/contributing/) document we would love to have you.
+```sh
+git clone https://github.com/compdani/actual-pocket.git
+cd actual-pocket
+```
 
-Want to say thanks? Click the ⭐ at the top of the page.
+Choose one of the following deployment methods.
 
-## Key Links
+### Dockerfile Only
 
-- Actual [discord](https://discord.gg/pRYNYr4W5A) community.
-- Actual [Community Documentation](https://actualbudget.org/docs)
-- [Frequently asked questions](https://actualbudget.org/docs/faq)
+Build the image, create persistent storage, and start the server:
 
-## Installation
+```sh
+docker build -t actual-pocket:local .
+docker volume create actual-pocket-data
+docker run -d \
+  --name actual-pocket \
+  --restart unless-stopped \
+  -p 5006:5006 \
+  -v actual-pocket-data:/data \
+  actual-pocket:local
+```
 
-There are four ways to deploy Actual:
+Open **http://localhost:5006**, create the owner account with an email address and password, and create or import a budget. For a sample budget, choose **View demo** where offered.
 
-1. One-click deployment [via PikaPods](https://www.pikapods.com/pods?run=actual) (~2.00 $/month) - recommended for non-technical users
-1. Managed hosting [via Fly.io](https://actualbudget.org/docs/install/fly) (~1.50 $/month)
-1. Self-hosted by using [a Docker image](https://actualbudget.org/docs/install/docker)
-1. Local-only apps - [downloadable Windows, Mac and Linux apps](https://actualbudget.org/download/) you can run on your device
+Check startup and stop the container:
 
-Learn more in the [installation instructions docs](https://actualbudget.org/docs/install/).
+```sh
+docker logs -f actual-pocket
+docker stop actual-pocket
+```
 
-## Ready to Start Budgeting?
+To update, back up your data, pull the latest source, rebuild, and replace the container using the same volume:
 
-Read about [Envelope budgeting](https://actualbudget.org/docs/getting-started/envelope-budgeting) to know more about the idea behind Actual Budget.
+```sh
+git pull
+docker build -t actual-pocket:local .
+docker stop actual-pocket
+docker rm actual-pocket
+docker run -d \
+  --name actual-pocket \
+  --restart unless-stopped \
+  -p 5006:5006 \
+  -v actual-pocket-data:/data \
+  actual-pocket:local
+```
 
-### Are you new to budgeting or want to start fresh?
+`sync-server-go.Dockerfile` provides the same Go/PocketBase build for deployments that specify `-f sync-server-go.Dockerfile`.
 
-Check out the community's [Starting Fresh](https://actualbudget.org/docs/getting-started/starting-fresh) guide so you can quickly get up and running!
+### Docker Compose
 
-### Are you migrating from other budgeting apps?
+The root `docker-compose.yml` builds this fork and stores server data in a named volume:
 
-Check out the community's [Migration](https://actualbudget.org/docs/migration/) guide to start jumping on the Actual Budget train!
+```sh
+docker compose up -d --build
+docker compose logs -f actual-server
+```
+
+Open **http://localhost:5006** and complete the initial setup. To stop the service:
+
+```sh
+docker compose down
+```
+
+To update, back up your data and run:
+
+```sh
+git pull
+docker compose up -d --build
+```
+
+Compose preserves the data volume when recreating containers or running `down`. **Do not use `docker compose down -v` unless you intend to delete the stored server data.** The Dockerfile-only and Compose examples use separate data volumes; choose one method consistently or explicitly configure them to share an existing volume.
+
+## PocketBase Accounts and Data
+
+The first-run page creates an application owner with an email address and password. PocketBase's administration UI is at `http://localhost:5006/_/`; its superuser credentials are separate from application users.
+
+The image contains a Go binary and the built web client; it does not run a Node sync server or include a shell. Check health with:
+
+```sh
+docker exec actual-pocket /actual-server health-check
+```
+
+For Compose, use `docker compose exec actual-server /actual-server health-check`.
+
+Persistent state lives in `/data/server-files/pb_data`, including the `actual_groups` synchronization logs. This backend is for fresh installations. Existing Node server data cannot be mounted as a PocketBase database; use a separate volume. See the Go/PocketBase server guide for backup and recovery instructions.
+
+### Storage and Configuration
+
+Mount persistent storage at `/data`; it contains server settings and synchronized budgets. Back up that volume before updating. To change the host port, change the first `5006` in `5006:5006`.
+
+You can mount a configuration file at `/data/config.json` or pass `ACTUAL_*` environment variables. See the [Go/PocketBase server guide](packages/sync-server-go/README.md) for supported settings; the inherited Node configuration reference includes settings this backend no longer accepts. The runtime runs as UID/GID `65532`; if you use a host-directory mount instead of a named volume, make sure that directory is writable by this user.
+
+For access from other devices, terminate HTTPS at a reverse proxy. The Go server does not accept the legacy `ACTUAL_HTTPS_KEY` and `ACTUAL_HTTPS_CERT` settings. The browser features required by Actual work on HTTP localhost; remote access requires a secure context. See the upstream [HTTPS guide](https://actualbudget.org/docs/config/https/).
+
+### Troubleshooting Startup
+
+If you see `cannot open ./bin/docker-start`, you are using the old development image or an old command override. Rebuild using the Dockerfile in this checkout and remove any deployment command or entrypoint override that invokes `bin/docker-start`. The production image starts the Go/PocketBase binary directly and needs no source mount at `/app`.
+
+For frontend development with live reload, use the separate development setup:
+
+```sh
+docker compose -f docker-compose.dev.yml up --build
+```
+
+The development frontend runs at **http://localhost:3001**. This is separate from the production deployment above.
 
 ## Documentation
 
-We have a wide range of documentation on how to use Actual, this is all available in our [Community Documentation](https://actualbudget.org/docs), this includes topics on Budgeting, Account Management, Tips & Tricks and some documentation for developers.
+The [documentation source](packages/docs/docs/index.md) is inherited from Actual Budget. Budgeting guides and technical references remain useful, but upstream downloads, hosted services, releases, community links, and historical announcements refer to the original project. They do not distribute or provide support for this fork.
 
-## Contributing
+- [Fork contribution and support policy](CONTRIBUTING.md)
+- [Local development setup](packages/docs/docs/contributing/development-setup.md)
+- [Upstream documentation](https://actualbudget.org/docs)
+- [Upstream repository](https://github.com/actualbudget/actual)
 
-Actual is a community driven product. Learn more about [contributing to Actual](https://actualbudget.org/docs/contributing/).
+## Attribution and License
 
-### Code structure
+Actual Pocket remains available under the **MIT license**. Copyright for the original work remains with James Long and the respective contributors. Fork modifications are copyright Danilo Urrutia. See [LICENSE.txt](LICENSE.txt).
 
-The Actual app is split up into a few packages:
-
-- loot-core - The core application that runs on any platform
-- desktop-client - The desktop UI
-- desktop-electron - The desktop app
-
-More information on the project structure is available in our [community documentation](https://actualbudget.org/docs/contributing/project-details).
-
-### Feature Requests
-
-Current feature requests can be seen [here](https://github.com/actualbudget/actual/issues?q=is%3Aissue+label%3A%22needs+votes%22+sort%3Areactions-%2B1-desc).
-Vote for your favorite requests by reacting :+1: to the top comment of the request.
-
-To add new feature requests, open a new Issue of the "Feature Request" type.
-
-### Translation
-
-Make Actual Budget accessible to more people by helping with the [Internationalization](https://actualbudget.org/docs/contributing/i18n/) of Actual. We are using a crowd sourcing tool to manage the translations, see our [Weblate Project](https://hosted.weblate.org/projects/actualbudget/). Weblate proudly supports open-source software projects through their [Libre plan](https://weblate.org/en/hosting/#libre).
-
-<a href="https://hosted.weblate.org/engage/actualbudget/">
-<img src="https://hosted.weblate.org/widget/actualbudget/actual/287x66-grey.png" alt="Translation status" />
-</a>
-
-## Sponsors
-
-Thanks to our wonderful sponsors who make Actual Budget possible!
-
-<a href="https://www.netlify.com"><img src="https://www.netlify.com/v3/img/components/netlify-color-accent.svg" alt="Deploys by Netlify" /></a>
-<a href="https://depot.dev"><img src="https://depot.dev/badges/built-with-depot.svg" alt="Built with Depot" /></a>
-<a href="https://www.docker.com"><img src="https://www.docker.com/app/uploads/2023/05/symbol_blue-docker-logo.png" alt="Docker" height="48" /></a>
-<a href="https://github.com"><img src="https://avatars.githubusercontent.com/u/9919?s=200&v=4" alt="GitHub" height="48" /></a>
-<a href="https://www.anthropic.com"><img src="https://avatars.githubusercontent.com/u/76263028?s=200&v=4" alt="Anthropic" height="48" /></a>
+Upstream sponsors, community services, translations, and release history belong to the original Actual Budget project; they do not imply sponsorship or endorsement of this fork.

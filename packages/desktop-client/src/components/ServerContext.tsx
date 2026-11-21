@@ -18,6 +18,7 @@ import { useDispatch } from '#redux';
 
 type LoginMethod = {
   method: string;
+  provider?: string;
   displayName: string;
   active: boolean;
 };
@@ -55,11 +56,8 @@ const ServerContext = createContext<ServerContextValue>({
 export const useServerURL = () => useContext(ServerContext).url;
 export const useServerVersion = () => useContext(ServerContext).version;
 export const useSetServerURL = () => useContext(ServerContext).setURL;
-export const useMultiuserEnabled = () => {
-  const { multiuserEnabled } = useContext(ServerContext);
-  const loginMethod = useLoginMethod();
-  return multiuserEnabled && loginMethod === 'openid';
-};
+export const useMultiuserEnabled = () =>
+  useContext(ServerContext).multiuserEnabled;
 
 export const useLoginMethod = () => {
   const availableLoginMethods = useContext(ServerContext).availableLoginMethods;

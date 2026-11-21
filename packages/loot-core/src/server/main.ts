@@ -300,6 +300,7 @@ type ServerInitConfig = BaseInitConfig & {
 };
 
 type PasswordAuthConfig = ServerInitConfig & {
+  email?: string;
   password: string;
   sessionToken?: never;
 };
@@ -369,7 +370,15 @@ export async function init(config: InitConfig) {
         );
       }
     } else if ('password' in config && config.password) {
+      const email = 'email' in config ? config.email : undefined;
+      if (!email) {
+        throw withErrorCode(
+          new Error('Authentication failed: email-required'),
+          'email-required',
+        );
+      }
       const result = await runHandler(handlers['subscribe-sign-in'], {
+        email,
         password: config.password,
       });
       if (result?.error) {

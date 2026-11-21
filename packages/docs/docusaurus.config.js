@@ -4,7 +4,8 @@
 const { themes } = require('prism-react-renderer');
 
 const defaultOptions = {
-  editUrl: 'https://github.com/actualbudget/actual/tree/master/packages/docs',
+  editUrl:
+    'https://github.com/compdani/actual-pocket/tree/master/packages/docs',
   beforeDefaultRemarkPlugins: [
     require('./src/remark/mentions'),
     require('./src/remark/enforce-doc-links'),
@@ -14,17 +15,17 @@ const defaultOptions = {
 
 /** @type {import('@docusaurus/types').Config} */
 module.exports = {
-  title: 'Actual Budget',
+  title: 'Actual Pocket',
   tagline: 'Your finances - made simple',
-  url: 'https://actualbudget.org/',
+  url: process.env.DOCUSAURUS_URL || 'http://localhost:3000',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
 
-  projectName: 'actualbudget.github.io',
-  organizationName: 'actualbudget',
-  deploymentBranch: 'main',
+  projectName: 'actual-pocket',
+  organizationName: 'compdani',
+  deploymentBranch: 'gh-pages',
 
   // Even if you don't use internalization, you can use this field to set useful
   // metadata like html lang. For example, if your site is Chinese, you may want
@@ -75,9 +76,15 @@ module.exports = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      announcementBar: {
+        id: 'personal-fork',
+        content:
+          'Actual Pocket is Danilo Urrutia’s personal fork of <a href="https://github.com/actualbudget/actual">Actual Budget</a>. Pull requests will most likely not be merged; issues may or may not be fixed. This fork uses Go/PocketBase. Inherited Node server guides, downloads, releases, and community resources refer to upstream.',
+        isCloseable: false,
+      },
       image: 'img/og.webp',
       navbar: {
-        title: 'Actual Budget',
+        title: 'Actual Pocket',
         logo: {
           alt: 'Actual Open Source',
           src: 'img/logo.webp',
@@ -120,16 +127,16 @@ module.exports = {
           },
           {
             href: 'https://opencollective.com/actual',
-            label: 'Donate',
+            label: 'Donate to Upstream',
             position: 'left',
           },
           {
             href: 'https://discord.gg/8JfAXSgfRf',
-            label: 'Discord',
+            label: 'Upstream Discord',
             position: 'right',
           },
           {
-            href: 'https://github.com/actualbudget/actual',
+            href: 'https://github.com/compdani/actual-pocket',
             label: 'GitHub',
             position: 'right',
           },
@@ -139,20 +146,20 @@ module.exports = {
         style: 'dark',
         links: [
           {
-            label: 'Discord',
+            label: 'Upstream Discord',
             href: 'https://discord.gg/8JfAXSgfRf',
           },
           {
             label: 'GitHub',
-            href: 'https://github.com/actualbudget/actual',
+            href: 'https://github.com/compdani/actual-pocket',
           },
           {
             href: 'https://opencollective.com/actual',
-            label: 'Donate',
+            label: 'Donate to Upstream',
           },
           {
             label: 'Website Source',
-            href: 'https://github.com/actualbudget/actual/tree/master/packages/docs',
+            href: 'https://github.com/compdani/actual-pocket/tree/master/packages/docs',
           },
           {
             label: 'Privacy Policy',
@@ -163,7 +170,7 @@ module.exports = {
             href: 'https://actualbudget.org/blog/rss.xml',
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} Actual Budget. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Danilo Urrutia (fork modifications). Original work: James Long and Actual Budget contributors. MIT license. Built with Docusaurus.`,
       },
       prism: {
         theme: themes.github,

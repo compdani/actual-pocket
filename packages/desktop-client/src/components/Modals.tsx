@@ -69,9 +69,7 @@ import { MergeUnusedPayeesModal } from './modals/MergeUnusedPayeesModal';
 import { NewCategoryGroupModal } from './modals/NewCategoryGroupModal';
 import { NewCategoryModal } from './modals/NewCategoryModal';
 import { NotesModal } from './modals/NotesModal';
-import { OpenIDEnableModal } from './modals/OpenIDEnableModal';
 import { OutOfSyncMigrationsModal } from './modals/OutOfSyncMigrationsModal';
-import { PasswordEnableModal } from './modals/PasswordEnableModal';
 import { PayeeAutocompleteModal } from './modals/PayeeAutocompleteModal';
 import { PluggyAiInitialiseModal } from './modals/PluggyAiInitialiseModal';
 import { ScheduledTransactionMenuModal } from './modals/ScheduledTransactionMenuModal';
@@ -429,12 +427,6 @@ export function Modals() {
 
         case 'api-key':
           return <ApiKeyModal key={key} {...modal.options} />;
-        case 'enable-openid':
-          return <OpenIDEnableModal key={key} {...modal.options} />;
-
-        case 'enable-password-auth':
-          return <PasswordEnableModal key={key} {...modal.options} />;
-
         default:
           throw new Error('Unknown modal');
       }

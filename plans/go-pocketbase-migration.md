@@ -8,6 +8,7 @@ PocketBase moved to this vanity path. Never import the old
 
 **Scope: a fresh install only.** No data will ever be imported from an existing
 Actual/Node server, and nothing will ever be exported back to one. So:
+
 - **Wire compatibility** with the web client and `@actual-app/api` in this repo
   is required (HTTP routes, status codes, bodies, headers, protobuf), **except
   for login**, which is redesigned around PocketBase users (Phase 6 changes the
@@ -69,22 +70,22 @@ criteria; do not start the next phase until they pass.
 
 ## 1. Locked architecture decisions
 
-| # | Decision | Why |
-|---|----------|-----|
-| D1 | PocketBase is used **as a Go framework** (`pocketbase.New()` + `OnServe` routes), not as the standalone binary + JS hooks. | Typed code, and one binary. |
-| D2 | **Users are PocketBase's `users` auth collection** (created by PB's init migration). Extend it with `role`, `enabled`, `owner`. Everything else Actual-specific (files, user access, secrets, api keys, prefs, pending OAuth2 logins, revoked tokens) is a **base collection** prefixed `actual_`, with relations pointing to `users`. | One identity system, so pocketbase_mcp and the admin UI at `/_/` manage real users, and PB handles hashing, tokens, OAuth2, and password reset emails. |
-| D3 | **CRDT message logs are per-group SQLite files** at `pb_data/actual_groups/group-<id>.sqlite`, **not** PB collections. | These logs are high-volume, append-only binary data, and PB has no binary field type, so a collection would mean base64 overhead. Reset deletes the whole file. Each sync is a hot-path write that shouldn't contend with PB's main DB writer. Keeping them in `pb_data` still puts them in PB backups (§6.1). |
-| D4 | **Budget blobs go in a PB `file` field** (`actual_files.blob`, protected, maxSize = `syncEncryptedFileSizeLimitMB`). The upload handler wraps the raw body with `filesystem.NewFileFromBytes` and saves the record. Download streams it from `app.NewFilesystem()`. | PB handles atomic replacement and old-file cleanup, and gives local or S3 storage plus built-in backups for free. |
-| D5 | **Tokens are PB auth tokens (JWTs)**, still sent in the `X-ACTUAL-TOKEN` header (or the `token` JSON body field), so the ~30 client call sites don't change. `Authorization: <token>` is accepted too, so a token from the PB SDK or PB's own `auth-with-password` endpoint works everywhere. Lifetime = the `users` collection's `authToken.duration` (default **365 days**, editable in the admin UI). | Stateless, standard, and interchangeable with PB's own auth APIs. |
-| D6 | **Logout revokes only that token**, via a denylist collection `actual_revoked_tokens` (SHA-256 of the token + its `exp`). Expired entries are pruned hourly by a PB cron job. **Changing a password** invalidates **all** of that user's tokens (PB rotates `tokenKey` automatically). | Matches Node's per-session logout, and PB has no per-token revocation. |
-| D7 | **Login methods:** email + password (PB `passwordAuth`, identity field `email`) and any **OAuth2 provider enabled on the `users` collection** in the PB admin UI (OIDC, Google, GitHub, …). Header auth and Actual's own OpenID configuration are **removed**. | One place to configure auth, PB's provider catalogue, and no shared password. |
-| D8 | API rules: `actual_*` collections have **all rules nil** (superuser-only). `users`: list/view/create/update/delete rules nil; `authRule = "enabled = true"`; password auth enabled; OTP and MFA off. | No self-signup through `/api`. PB's own auth endpoint works for enabled users only. |
-| D9 | PB auto IDs everywhere **except `actual_files`**. The client generates the budget's file id and sends it in `x-actual-file-id`, so that collection's `id` field uses `Pattern: ^[a-zA-Z0-9_-]+$`, `Min:1, Max:100`, and keeps the default `AutogeneratePattern`. Natural keys (`secrets.name`, which contains `:`, `key`, `state`, `token_hash`, and the join pairs) are separate fields with **unique indexes**. | Only file ids come from outside the server. |
-| D10 | SQLite driver: whatever PB already registers (`modernc.org/sqlite`, CGO-free). The group DBs use the same driver through `database/sql`. | One driver, and cross-compiles without CGO. |
-| D11 | **Bank sync**: port providers one at a time. Until a provider is ported, its `/status` endpoint returns `{"status":"ok","data":{"configured":false}}` and its other endpoints return 404. Port order: SimpleFIN → Enable Banking → Pluggy.ai → Akahu → GoCardless. GoCardless goes last and is optional: it's 4.5k LOC of per-bank normalizers, and GoCardless closed new sign-ups in 2025. | No Node sidecar. A sidecar can't share users or secrets once they live in PB. |
-| D12 | Custom TLS certs (`ACTUAL_HTTPS_KEY/CERT`) are **dropped**. Run behind a reverse proxy, or use PB's `serve --https` with autocert. If either env var is set, log a clear error and exit 1. | PB owns the listener. Supporting custom certs means forking `apis.Serve`. |
-| D13 | Rate limiting on Actual routes uses our own in-memory limiter (`golang.org/x/time/rate`, keyed by client IP). PB's settings rate limiter is **enabled** for `/api/*` (including PB's own auth endpoints) in a settings migration. | Actual routes must match express-rate-limit, including `skipSuccessfulRequests`. PB's auth endpoints now accept real user passwords, so they need limits too. |
-| D14 | Go code lives at `packages/sync-server-go/`, module `github.com/compdani/actual-pocket/packages/sync-server-go`. Don't add a `package.json`, so Yarn and lage ignore it. | Keeps the code beside the Node server it replaces. |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Why                                                                                                                                                                                                                                                                                                            |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | PocketBase is used **as a Go framework** (`pocketbase.New()` + `OnServe` routes), not as the standalone binary + JS hooks.                                                                                                                                                                                                                                                                                                                                 | Typed code, and one binary.                                                                                                                                                                                                                                                                                    |
+| D2  | **Users are PocketBase's `users` auth collection** (created by PB's init migration). Extend it with `role`, `enabled`, `owner`. Everything else Actual-specific (files, user access, secrets, api keys, prefs, pending OAuth2 logins, revoked tokens) is a **base collection** prefixed `actual_`, with relations pointing to `users`.                                                                                                                     | One identity system, so pocketbase_mcp and the admin UI at `/_/` manage real users, and PB handles hashing, tokens, OAuth2, and password reset emails.                                                                                                                                                         |
+| D3  | **CRDT message logs are per-group SQLite files** at `pb_data/actual_groups/group-<id>.sqlite`, **not** PB collections.                                                                                                                                                                                                                                                                                                                                     | These logs are high-volume, append-only binary data, and PB has no binary field type, so a collection would mean base64 overhead. Reset deletes the whole file. Each sync is a hot-path write that shouldn't contend with PB's main DB writer. Keeping them in `pb_data` still puts them in PB backups (§6.1). |
+| D4  | **Budget blobs go in a PB `file` field** (`actual_files.blob`, protected, maxSize = `syncEncryptedFileSizeLimitMB`). The upload handler wraps the raw body with `filesystem.NewFileFromBytes` and saves the record. Download streams it from `app.NewFilesystem()`.                                                                                                                                                                                        | PB handles atomic replacement and old-file cleanup, and gives local or S3 storage plus built-in backups for free.                                                                                                                                                                                              |
+| D5  | **Tokens are PB auth tokens (JWTs)**, still sent in the `X-ACTUAL-TOKEN` header (or the `token` JSON body field), so the ~30 client call sites don't change. `Authorization: <token>` is accepted too, so a token from the PB SDK or PB's own `auth-with-password` endpoint works everywhere. Lifetime = the `users` collection's `authToken.duration` (default **365 days**, editable in the admin UI).                                                   | Stateless, standard, and interchangeable with PB's own auth APIs.                                                                                                                                                                                                                                              |
+| D6  | **Logout revokes only that token**, via a denylist collection `actual_revoked_tokens` (SHA-256 of the token + its `exp`). Expired entries are pruned hourly by a PB cron job. **Changing a password** invalidates **all** of that user's tokens (PB rotates `tokenKey` automatically). Every token is minted through `auth.Resolver.IssueToken`, which keeps the `exp` strictly increasing per user so two logins in the same second cannot share a token. | Matches Node's per-session logout, and PB has no per-token revocation. PB tokens only carry whole-second expiries, so without the bump two same-second logins would be revoked together.                                                                                                                       |
+| D7  | **Login methods:** email + password (PB `passwordAuth`, identity field `email`) and any **OAuth2 provider enabled on the `users` collection** in the PB admin UI (OIDC, Google, GitHub, …). Header auth and Actual's own OpenID configuration are **removed**.                                                                                                                                                                                             | One place to configure auth, PB's provider catalogue, and no shared password.                                                                                                                                                                                                                                  |
+| D8  | API rules: `actual_*` collections have **all rules nil** (superuser-only). `users` encodes the Actual permission hierarchy in PB itself (owner > ADMIN > BASIC, self-service profile edits, `owner`/`password_set` server-owned); the Go `/admin/users` routes check the same rules with `CanAccessRecord`, and model hooks keep the owner invariants even for superusers. `authRule = "enabled = true"`; password auth enabled; OTP and MFA off.          | One permission model for PB's REST API, the admin UI, MCP and our routes, so they cannot drift. No self-signup through `/api`; PB's own auth endpoint works for enabled users only.                                                                                                                            |
+| D9  | PB auto IDs everywhere **except `actual_files`**. The client generates the budget's file id and sends it in `x-actual-file-id`, so that collection's `id` field uses `Pattern: ^[a-zA-Z0-9_-]+$`, `Min:1, Max:100`, and keeps the default `AutogeneratePattern`. Natural keys (`secrets.name`, which contains `:`, `key`, `state`, `token_hash`, and the join pairs) are separate fields with **unique indexes**.                                          | Only file ids come from outside the server.                                                                                                                                                                                                                                                                    |
+| D10 | SQLite driver: whatever PB already registers (`modernc.org/sqlite`, CGO-free). The group DBs use the same driver through `database/sql`.                                                                                                                                                                                                                                                                                                                   | One driver, and cross-compiles without CGO.                                                                                                                                                                                                                                                                    |
+| D11 | **Bank sync**: port providers one at a time. Until a provider is ported, its `/status` endpoint returns `{"status":"ok","data":{"configured":false}}` and its other endpoints return 404. Port order: SimpleFIN → Enable Banking → Pluggy.ai → Akahu. **GoCardless is not ported**: it closed to new sign-ups in July 2025 and is winding down, so it keeps the not-configured stub.                                                                       | No Node sidecar. A sidecar can't share users or secrets once they live in PB. Porting 4.5k LOC of a dying provider is not worth the risk.                                                                                                                                                                      |
+| D12 | Custom TLS certs (`ACTUAL_HTTPS_KEY/CERT`) are **dropped**. Run behind a reverse proxy, or use PB's `serve --https` with autocert. If either env var is set, log a clear error and exit 1.                                                                                                                                                                                                                                                                 | PB owns the listener. Supporting custom certs means forking `apis.Serve`.                                                                                                                                                                                                                                      |
+| D13 | Rate limiting on Actual routes uses our own in-memory limiter (`golang.org/x/time/rate`, keyed by client IP). PB's settings rate limiter is **enabled** for `/api/*` (including PB's own auth endpoints) in a settings migration.                                                                                                                                                                                                                          | Actual routes must match express-rate-limit, including `skipSuccessfulRequests`. PB's auth endpoints now accept real user passwords, so they need limits too.                                                                                                                                                  |
+| D14 | Go code lives at `packages/sync-server-go/`, module `github.com/compdani/actual-pocket/packages/sync-server-go`. Don't add a `package.json`, so Yarn and lage ignore it.                                                                                                                                                                                                                                                                                   | Keeps the code beside the Node server it replaces.                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -122,6 +123,7 @@ packages/sync-server-go/
 ## 3. Phase 1: Skeleton that boots
 
 ### 3.1 Module
+
 - `go mod init github.com/compdani/actual-pocket/packages/sync-server-go`
 - `go get ganigeorgiev.com/pocketbase/pocketbase@v0.41.1`
 - Add deps only as needed: `golang.org/x/time/rate`, `golang.org/x/oauth2`
@@ -129,9 +131,11 @@ packages/sync-server-go/
   (group ids). Don't add a murmur3, argon2, bcrypt, or OIDC library.
 
 ### 3.2 Config (`internal/config`)
+
 Port `src/load-config.js`: the same `ACTUAL_*` env names, defaults, and
 `config.json` lookup order (read that file first), **minus the auth keys**. Expose a
 typed `Config` struct. Notes:
+
 - `dataDir` default: Node uses a projectRoot or appdata path. Use `./data`
   when unset, and log the resolved absolute path at startup.
 - Keep `serverFiles` / `ACTUAL_SERVER_FILES` (default `<dataDir>/server-files`); it
@@ -145,6 +149,7 @@ typed `Config` struct. Notes:
 - Port `src/config-file-env.ts` (the `_FILE` env var support) too.
 
 ### 3.3 `main.go`
+
 ```go
 app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: cfg.PBDataDir})
 migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{Automigrate: false})
@@ -155,15 +160,18 @@ app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 })
 app.Start()
 ```
+
 Set `Automigrate: false`. Collections are defined **only** in hand-written Go migrations.
 
 ### 3.4 Default-command shim
+
 When `os.Args` has no subcommand, inject
 `serve --http=<host>:<port>` from config. Hostname `::` becomes `[::]:5006`.
 Users then run `./actual-server` with no arguments, like today.
 Log `Listening on <addr>:<port>...`. Electron and Docker health checks rely on that line.
 
 ### 3.5 Global middleware (bind on `se.Router`)
+
 - CORS: PB already binds permissive CORS, which matches `cors()`. Leave it.
 - Body limits: PB binds a global 32 MB `BodyLimit`. Override **per route** with
   `apis.BodyLimit(n)`. Limits come from config:
@@ -178,6 +186,7 @@ Log `Listening on <addr>:<port>...`. Electron and Docker health checks rely on t
   Otherwise use `RemoteAddr`.
 
 ### 3.6 Meta routes (`routes/meta.go`)
+
 - `GET /mode` → text body `cfg.Mode`.
 - `GET /health` → `{"status":"UP"}`.
 - `GET /info` → `{"build":{"name":"@actual-app/sync-server","description":"actual syncing server","version":<ldflags Version>}}`.
@@ -186,6 +195,7 @@ Log `Listening on <addr>:<port>...`. Electron and Docker health checks rely on t
   Map these from `runtime.MemStats`: `Sys`, `HeapSys`, `HeapAlloc`, `0`, `0`.
 
 ### 3.7 Static frontend (`routes/static.go`)
+
 - Production: `apis.Static(os.DirFS(cfg.WebRoot), true)` on `GET /{path...}`.
   `index.html` is the SPA fallback. Check that `/api/*` and `/_/*` still resolve
   to PB, because the more specific routes must win.
@@ -209,17 +219,35 @@ and `updated` to every new collection, which helps MCP. Field names are snake_ca
 Every migration includes a `down` that undoes it.
 
 ### 4.1 Extend the built-in `users` auth collection
+
 `app.FindCollectionByNameOrId("users")`, then add fields and save:
 
-| Field | Type | Notes |
-|---|---|---|
-| `role` | select [`ADMIN`, `BASIC`], maxSelect 1, required | Node `users.role` |
-| `enabled` | bool | Node `users.enabled`. New users default to true (set in code; PB bools default false). |
-| `owner` | bool | The server owner. Exactly one user, the first one created. |
+| Field     | Type                                             | Notes                                                                                  |
+| --------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `role`    | select [`ADMIN`, `BASIC`], maxSelect 1, required | Node `users.role`                                                                      |
+| `enabled` | bool                                             | Node `users.enabled`. New users default to true (set in code; PB bools default false). |
+| `owner`   | bool                                             | The server owner. Exactly one user, the first one created.                             |
 
 The built-in `name` field is Actual's `display_name`, and `email` is Actual's `user_name`.
 Also set on the collection:
-- rules per D8; `PasswordAuth.Enabled = true`, `IdentityFields = ["email"]`;
+
+- rules per D8, applied by migration `1795221100_secure_users_rules.go`.
+  They are evaluated with `@request.auth` being the acting user:
+  - list/view: `@request.auth.collectionName = "users" && @request.auth.enabled = true && (@request.auth.role = "ADMIN" || @request.auth.owner = true || id = @request.auth.id)`
+  - create: `@request.auth.collectionName = "users" && @request.auth.enabled = true && @request.body.owner:isset = false && @request.body.password_set:isset = false && (@request.auth.owner = true || (@request.auth.role = "ADMIN" && @request.body.role = "BASIC"))`
+  - update: `@request.auth.collectionName = "users" && @request.auth.enabled = true && @request.body.owner:changed = false && @request.body.password_set:changed = false && ((@request.auth.owner = true && (owner = false || (@request.body.role:changed = false && @request.body.enabled:changed = false))) || (@request.auth.role = "ADMIN" && owner = false && (id = @request.auth.id || role = "BASIC") && (@request.body.role:changed = false || @request.body.role = "BASIC") && (id != @request.auth.id || @request.body.enabled:changed = false)) || (id = @request.auth.id && @request.body.role:changed = false && @request.body.enabled:changed = false))`
+  - delete: `@request.auth.collectionName = "users" && @request.auth.enabled = true && owner = false && id != @request.auth.id && (@request.auth.owner = true || (@request.auth.role = "ADMIN" && role = "BASIC"))`
+  - manage (cross-user email/password changes): `@request.auth.collectionName = "users" && @request.auth.enabled = true && id != @request.auth.id && owner = false && (@request.auth.owner = true || (@request.auth.role = "ADMIN" && role = "BASIC"))`
+
+  `owner` and `password_set` are server-owned: create rejects the fields when
+  present (`:isset = false`), update rejects changing them (`:changed =
+  false`). PocketBase has no `:changed` form for create, so the `:isset` checks
+  are the create-side equivalent. `owner` may only be true on the very first
+  user, and an owner cannot be demoted, disabled or deleted; those invariants
+  live in model hooks (`internal/store/user_hooks.go`) because superusers bypass
+  rules.
+
+- `PasswordAuth.Enabled = true`, `IdentityFields = ["email"]`;
   `OTP.Enabled = false`, `MFA.Enabled = false`;
 - `AuthToken.Duration = 31536000` (365 days);
 - `OAuth2.Enabled = true` with **no providers**. The owner adds providers in the admin UI.
@@ -227,25 +255,27 @@ Also set on the collection:
 
 ### 4.2 New collections (all rules nil)
 
-| Collection | Node table | id | Fields | Indexes |
-|---|---|---|---|---|
-| `actual_files` | files | custom (D9) | `group_id`, `sync_version` number, `encrypt_meta`, `encrypt_keyid`, `encrypt_salt`, `encrypt_test` text, `deleted` bool, `name` text, `owner` relation→users (maxSelect 1, cascadeDelete false), `blob` file (maxSelect 1, protected, maxSize from config, any mime) | index `owner`, index `group_id` |
-| `actual_user_access` | user_access | auto | `user_id` relation→users (cascade), `file_id` relation→actual_files (cascade) | **unique** (`user_id`,`file_id`) |
-| `actual_revoked_tokens` | (new) | auto | `token_hash` text (SHA-256 hex), `expires_at` number (unix seconds, from the JWT `exp`) | **unique** `token_hash`, index `expires_at` |
-| `actual_pending_oauth` | pending_openid_requests | auto | `state` text, `provider` text, `code_verifier` text hidden, `return_url` text, `expires_at` number (unix seconds) | **unique** `state` |
-| `actual_secrets` | secrets | auto | `name` text, `value` text **hidden** | unique `name` |
-| `actual_server_prefs` | server_prefs | auto | `key` text, `value` text | unique `key` |
-| `actual_api_keys` | api_keys | auto | `user_id` relation→users (cascade), `name` text, `key_hash` text hidden, `created_at` number (copy Node's unit; check `app-api-keys.ts`) | unique `key_hash`, index `user_id` |
-| `actual_api_key_budgets` | api_key_budgets | auto | `key_id` relation→actual_api_keys (cascade), `file_id` text (**not** a relation; Node has no FK) | unique (`key_id`,`file_id`) |
+| Collection               | Node table              | id          | Fields                                                                                                                                                                                                                                                               | Indexes                                     |
+| ------------------------ | ----------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `actual_files`           | files                   | custom (D9) | `group_id`, `sync_version` number, `encrypt_meta`, `encrypt_keyid`, `encrypt_salt`, `encrypt_test` text, `deleted` bool, `name` text, `owner` relation→users (maxSelect 1, cascadeDelete false), `blob` file (maxSelect 1, protected, maxSize from config, any mime) | index `owner`, index `group_id`             |
+| `actual_user_access`     | user_access             | auto        | `user_id` relation→users (cascade), `file_id` relation→actual_files (cascade)                                                                                                                                                                                        | **unique** (`user_id`,`file_id`)            |
+| `actual_revoked_tokens`  | (new)                   | auto        | `token_hash` text (SHA-256 hex), `expires_at` number (unix seconds, from the JWT `exp`)                                                                                                                                                                              | **unique** `token_hash`, index `expires_at` |
+| `actual_pending_oauth`   | pending_openid_requests | auto        | `state` text, `provider` text, `code_verifier` text hidden, `return_url` text, `expires_at` number (unix seconds)                                                                                                                                                    | **unique** `state`                          |
+| `actual_secrets`         | secrets                 | auto        | `name` text, `value` text **hidden**                                                                                                                                                                                                                                 | unique `name`                               |
+| `actual_server_prefs`    | server_prefs            | auto        | `key` text, `value` text                                                                                                                                                                                                                                             | unique `key`                                |
+| `actual_api_keys`        | api_keys                | auto        | `user_id` relation→users (cascade), `name` text, `key_hash` text hidden, `created_at` number (copy Node's unit; check `app-api-keys.ts`)                                                                                                                             | unique `key_hash`, index `user_id`          |
+| `actual_api_key_budgets` | api_key_budgets         | auto        | `key_id` relation→actual_api_keys (cascade), `file_id` text (**not** a relation; Node has no FK)                                                                                                                                                                     | unique (`key_id`,`file_id`)                 |
 
 Node's `auth`, `sessions`, and `users` tables have **no** equivalent collection.
 
 ### 4.3 Settings migration
+
 - Rate limits: `Settings().RateLimits.Enabled = true`. Keep PB's default rules, and
   make sure the `*:auth` rule (auth endpoints) is at most 5 requests per 15 min per IP equivalent.
 - Backups: `Settings().Backups.Cron = "0 3 * * *"`, `CronMaxKeep = 7`. S3 stays off.
 
 Notes:
+
 - `secrets.value` is a BLOB in Node, but every caller stores strings. Use text.
 - Skip the Node migrations that only exist for old data (`rename-nordigen-secrets`,
   `backfill-files-owner`, `multiuser`, `openid`). Collections start at the final schema.
@@ -263,6 +293,7 @@ asserts each collection's field names, rules, and the `users` auth options above
 ## 5. Phase 3: CRDT core (the riskiest part, so test it hardest)
 
 ### 5.1 Protobuf
+
 - Source: `packages/crdt/src/proto/sync.proto`. **Don't edit it.**
 - Generate with
   `protoc --go_out=internal/crdt/pb --go_opt=paths=source_relative --go_opt=Msync.proto=github.com/compdani/actual-pocket/packages/sync-server-go/internal/crdt/pb -I ../crdt/src/proto sync.proto`
@@ -270,12 +301,15 @@ asserts each collection's field names, rules, and the `users` auth options above
 - Field names in Go: `FileId`, `GroupId`, `KeyId`, `Since`, `Messages`; `MessageEnvelope{Timestamp, IsEncrypted, Content}`; `SyncResponse{Messages, Merkle}`.
 
 ### 5.2 Murmur3 (`crdt/murmur3.go`)
+
 Implement MurmurHash3 x86_32, seed 0, over the UTF-8 bytes of the string
 (~30 lines, no dependency). The JS side uses `murmurhash@2` `v3()`. Golden-test it (§5.5).
 
 ### 5.3 Timestamp (`crdt/timestamp.go`)
+
 Port **only** what the server uses: `Parse(string) (*Timestamp, bool)`,
 `Millis()`, `String()`, `Hash() int32`.
+
 - Port `Timestamp.parse` from `packages/crdt/src/crdt/timestamp.ts` exactly:
   split on `-` into 5 parts, `Date.parse(parts[0..2] joined by '-')`, counter is
   hex and must be ≤ 0xFFFF, and node length must be ≤ `MAX_NODE_LENGTH` (read the constant).
@@ -286,7 +320,9 @@ Port **only** what the server uses: `Parse(string) (*Timestamp, bool)`,
 - `Hash()` = `int32(murmur3(String()))`.
 
 ### 5.4 Merkle (`crdt/merkle.go`). Read every line.
+
 JS quirks you **must** reproduce:
+
 1. **Hashes are signed int32.** `murmurhash.v3` returns uint32, but JS `^`
    produces int32. Store `Hash *int32`. Every XOR is int32 XOR.
 2. **`hash` can be absent.** A fresh trie from the DB is `{}` with no `hash` key.
@@ -304,16 +340,18 @@ JS quirks you **must** reproduce:
 Server only needs `Insert`, `Prune`, and JSON (un)marshal. Skip `diff` and `build`.
 
 ### 5.5 Golden fixtures (do this before writing merkle.go)
+
 `scripts/gen-crdt-fixtures.mjs`, run with `node` from the repo root using
 `@actual-app/crdt`:
+
 - `murmur.json`: 200 random ASCII strings → `murmurhash.v3` value.
 - `timestamps.json`: 200 timestamp strings (valid ones plus malformed:
   bad counter, long node, bad date, wrong part count) → `{ok, millis, str, hash}`.
 - `merkle-*.json`: sequences of 1, 10, 1,000, and 10,000 timestamps spread across
   years, including duplicates and hashes that cancel to 0. After each insert
   batch, record `JSON.stringify(trie)` and `JSON.stringify(prune(trie))`.
-Go tests must match these **as exact strings**. `make fixtures` regenerates them,
-and the generated JSON is committed.
+  Go tests must match these **as exact strings**. `make fixtures` regenerates them,
+  and the generated JSON is committed.
 
 **Acceptance:** all golden tests pass. No sync-route work starts before then.
 
@@ -322,6 +360,7 @@ and the generated JSON is committed.
 ## 6. Phase 4: Group sync engine (`internal/syncdb`) + `/sync/sync`
 
 ### 6.1 Group DB
+
 - Validate `groupId` with `^[a-zA-Z0-9_-]+$` first, then check that the resolved
   path stays inside `actual_groups/`.
 - **Location: `<pbDataDir>/actual_groups/group-<id>.sqlite`.** It's inside `pb_data`,
@@ -344,6 +383,7 @@ and the generated JSON is committed.
   whole `Sync` call. Also use `BEGIN IMMEDIATE` so another process can't race.
 
 ### 6.2 `Sync(messages, since, groupId)`: port `src/sync-simple.js` exactly
+
 1. `SELECT * FROM messages_binary WHERE timestamp > ? ORDER BY timestamp`. This
    runs **before** inserting the incoming messages, and the order matters.
 2. In one transaction: load the merkle (`{}` if no row), then for each message
@@ -356,7 +396,9 @@ and the generated JSON is committed.
    1 or 0 and read back as `== 1`.
 
 ### 6.3 Route `POST /sync/sync`. Port `app.post('/sync')` from `src/app-sync.ts`.
+
 Until Phase 5 lands, guard it with a test-only token check so it can be tested.
+
 - Body is raw `application/actual-sync`. On protobuf decode failure, return
   `500 {"status":"error","reason":"internal-error"}`.
 - `since` empty → `422 {"details":"since-required","reason":"unprocessable-entity","status":"error"}`. JSON key order doesn't matter here.
@@ -374,8 +416,10 @@ sequence to the Node and Go servers and compares the response merkle strings.
 ## 7. Phase 5: Server-side auth on PocketBase users (`internal/auth`, `/account`)
 
 ### 7.1 Resolving a request's user (`auth.Resolve`), replacing `util/validate-user.ts`
+
 Token lookup order: JSON body `token`, then `X-ACTUAL-TOKEN`, then `Authorization`
 (strip an optional `Bearer ` prefix). Then:
+
 1. No token → `401 {"status":"error","reason":"unauthorized","details":"token-not-found"}`.
 2. `security.ParseUnverifiedJWT(token)`. If it parses and `exp` ≤ now →
    `401 {"status":"error","reason":"token-expired"}`. The client relies on telling
@@ -389,38 +433,49 @@ Token lookup order: JSON body `token`, then `X-ACTUAL-TOKEN`, then `Authorizatio
 
 Helpers: `IsAdmin(rec) = rec.GetString("role") == "ADMIN"`.
 
+Issuing a token: always `auth.Resolver.IssueToken(rec)`, never
+`rec.NewAuthToken()` directly. It signs with `rec.NewStaticAuthToken(...)` using the
+`users` collection's `authToken.duration`, but remembers the last `exp` per user in
+memory (mutex-guarded, pruned by the hourly cron) and pushes the next `exp` forward
+by whole seconds when two logins happen in the same second. PocketBase's tokens have
+one-second exp granularity, so otherwise they would be byte-identical and logging
+out one session would revoke the other.
+
 **API keys** (`util/validate-budget-session.ts`): port this exactly, including
 `apiKeyFileIds`. An API key resolves to its `user_id` record, and the same
 `enabled` check applies. `/sync` decides between user-only and API-key-capable
 auth per route, using the exact list at the top of `src/app-sync.ts`.
 
 ### 7.2 `/account/*` routes
+
 Response envelopes stay as in `src/app-account.js` (`{status:'ok', data}` /
 `{status:'error', reason}`). Behaviour changes:
 
-| Route | New behaviour |
-|---|---|
-| `GET /needs-bootstrap` | `{status:'ok', data:{bootstrapped: <users count > 0>, loginMethod:'password', availableLoginMethods: <same list as login-methods>, multiuser: true}}` |
-| `POST /bootstrap` `{email, password}` | Only when there are **no** users, otherwise `400 already-bootstrapped`. Create a user: email, password (PB validates min 8 → `400 invalid-password`), `name: ""`, `role: ADMIN`, `enabled: true`, `owner: true`, `verified: true`. Respond `{status:'ok', data:{}}`. Use `RunInTransaction` and re-check the count inside it, so two bootstraps can't both win. |
-| `GET /login-methods` | `{status:'ok', methods:[…]}`. Include `{method:'password', displayName:'Email & password', active:true}` if password auth is enabled, plus one `{method:'openid', provider:<name>, displayName:<provider display name>, active:true}` per OAuth2 provider configured on `users`. |
-| `POST /login` `{loginMethod, email, password}` | Password: `FindAuthRecordByEmail("users", email)`, then `ValidatePassword`. Unknown email and wrong password both → `400 invalid-password`. Disabled → `400 user-disabled`. Success → `{status:'ok', data:{token: rec.NewAuthToken()}}`. Always run a password check, even for an unknown email (validate against a dummy record), to avoid a timing oracle. |
-| `POST /login` `{loginMethod:'openid', provider, returnUrl}` | §11. |
-| `POST /logout` `{token}` | Validate it as in §7.1, then insert `{token_hash, expires_at: exp}` into `actual_revoked_tokens`. Keep Node's error responses (`400 invalid-token`). |
-| `POST /change-password` `{token, password, currentPassword}` | Require `currentPassword` to be valid (`invalid-current-password`). `SetPassword` + save, which rotates `tokenKey` and logs the user out everywhere. Respond `{status:'ok', data:{token: <new token>}}` so the current device stays logged in (Phase 6 stores it). |
-| `POST /server-prefs` | Unchanged, admin only. |
-| `GET /validate` | `data: {userName: email, displayName: name, userId: id, permission: role, loginMethod: 'password' or 'openid' (from the JWT's issue path; default 'password'), prefs}`. Check the exact field set in Node's handler. |
+| Route                                                        | New behaviour                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /needs-bootstrap`                                       | `{status:'ok', data:{bootstrapped: <users count > 0>, loginMethod:'password', availableLoginMethods: <same list as login-methods>, multiuser: true}}`                                                                                                                                                                                                           |
+| `POST /bootstrap` `{email, password}`                        | Only when there are **no** users, otherwise `400 already-bootstrapped`. Create a user: email, password (PB validates min 8 → `400 invalid-password`), `name: ""`, `role: ADMIN`, `enabled: true`, `owner: true`, `verified: true`. Respond `{status:'ok', data:{}}`. Use `RunInTransaction` and re-check the count inside it, so two bootstraps can't both win. |
+| `GET /login-methods`                                         | `{status:'ok', methods:[…]}`. Include `{method:'password', displayName:'Email & password', active:true}` if password auth is enabled, plus one `{method:'openid', provider:<name>, displayName:<provider display name>, active:true}` per OAuth2 provider configured on `users`.                                                                                |
+| `POST /login` `{loginMethod, email, password}`               | Password: `FindAuthRecordByEmail("users", email)`, then `ValidatePassword`. Unknown email and wrong password both → `400 invalid-password`. Disabled → `400 user-disabled`. Success → `{status:'ok', data:{token: auth.IssueToken(rec)}}`. Always run a password check, even for an unknown email (validate against a dummy record), to avoid a timing oracle.  |
+| `POST /login` `{loginMethod:'openid', provider, returnUrl}`  | §11.                                                                                                                                                                                                                                                                                                                                                            |
+| `POST /logout` `{token}`                                     | Validate it as in §7.1, then insert `{token_hash, expires_at: exp}` into `actual_revoked_tokens`. Keep Node's error responses (`400 invalid-token`).                                                                                                                                                                                                            |
+| `POST /change-password` `{token, password, currentPassword}` | Require `currentPassword` to be valid (`invalid-current-password`). `SetPassword` + save, which rotates `tokenKey` and logs the user out everywhere. Respond `{status:'ok', data:{token: <auth.IssueToken(rec)>}}` so the current device stays logged in (Phase 6 stores it).                                                                                   |
+| `POST /server-prefs`                                         | Unchanged, admin only.                                                                                                                                                                                                                                                                                                                                          |
+| `GET /validate`                                              | `data: {userName: email, displayName: name, userId: id, permission: role, loginMethod: 'password' or 'openid' (from the JWT's issue path; default 'password'), prefs}`. Check the exact field set in Node's handler.                                                                                                                                            |
 
 - Auth limiter on `bootstrap`, `login`, `change-password`: 5 per 15 min per IP,
   **failed responses only** (`skipSuccessfulRequests`). Count a request as failed
   if status ≥ 400. Body `{"status":"error","reason":"too-many-requests"}`, status 429.
 - Hourly cron (`app.Cron().MustAdd("actualPruneRevoked", "0 * * * *", …)`): delete
-  `actual_revoked_tokens` rows whose `expires_at` has passed, and `actual_pending_oauth`
-  rows past `expires_at`.
+  `actual_revoked_tokens` rows whose `expires_at` has passed, `actual_pending_oauth`
+  rows past `expires_at`, and the in-memory last-token `exp` entries whose tokens
+  have expired.
 
 **Acceptance:** Go tests cover every row of the table: bootstrap race, unknown vs
 wrong password, disabled user, expired vs invalid vs revoked tokens, change-password
-invalidating old tokens while the returned token works, and a token from PB's
-`/api/collections/users/auth-with-password` working on `/sync/list-user-files`.
+invalidating old tokens while the returned token works, two logins in the same
+second getting distinct tokens (logging out one leaves the other valid), and a token
+from PB's `/api/collections/users/auth-with-password` working on `/sync/list-user-files`.
 
 ---
 
@@ -471,6 +526,7 @@ Port `app-sync/services/files-service.ts` into `store/files.go`, and every remai
 route in `src/app-sync.ts`: `user-get-key`, `user-create-key`, `reset-user-file`,
 `upload-user-file`, `download-user-file`, `update-user-filename`,
 `list-user-files`, `get-user-file-info`, `delete-user-file`.
+
 - `FileUpdate` semantics: only fields that are **defined** change. In Go use
   pointer fields, where nil means don't touch and a pointer to nil (for example
   `groupId: null`) means set NULL. Use a `Nullable[T]{Set bool; Val *string}` helper.
@@ -506,6 +562,7 @@ and `deleted-budget-bank-sync.test.ts` ported and passing, with PB users in plac
 Port `src/app-admin.js`, `src/app-secrets.js`, `src/app-api-keys.ts`,
 `services/user-service.ts`, and `services/secrets-service.js`. Admin user routes
 now operate on PB `users`:
+
 - `GET /admin/owner-created` → whether a user with `owner = true` exists.
 - `GET /admin/users` → Node's response shape, mapped: `id`, `userName` = email,
   `displayName` = name, `role`, `enabled`, `owner`.
@@ -538,12 +595,15 @@ pieces named here. `/openid/enable`, `/openid/disable`, and `/openid/config` ret
 
 1. **Start** (`POST /account/login` with `loginMethod:'openid'`):
    - Port `isValidRedirectUrl` from `accounts/openid.ts` exactly. It's a security
-     boundary. Invalid → `400 {"status":"error","reason":"Invalid redirect URL"}`.
+     boundary. The reference hostname comes from `Settings().Meta.AppURL` (PB has
+     no per-provider `server_hostname`): the return URL's hostname must equal the
+     application's hostname or be `localhost`, ignoring scheme and port exactly
+     like Node. Invalid → `400 {"status":"error","reason":"Invalid redirect URL"}`.
    - `col := users`; `cfg, ok := col.OAuth2.GetProviderConfig(provider)`. Missing, or
      `!col.OAuth2.Enabled` → `400 provider-not-configured`.
    - `p, _ := cfg.InitProvider()`; `p.SetRedirectURL(appURL + "/openid/callback")`,
      where `appURL = app.Settings().Meta.AppURL`. If it's empty → `400 app-url-not-set`,
-     and log that the owner must set *Application URL* in the admin UI.
+     and log that the owner must set _Application URL_ in the admin UI.
    - `verifier := oauth2.GenerateVerifier()`, `state := security.RandomString(32)`.
      Insert into `actual_pending_oauth` with a 10 min expiry.
    - Respond `{status:'ok', data:{returnUrl: p.BuildAuthURL(state, oauth2.S256ChallengeOption(verifier))}}`.
@@ -560,11 +620,19 @@ pieces named here. `/openid/enable`, `/openid/disable`, and `/openid/config` ret
      apply → error redirect with `user-not-found`.
    - Create the `_externalAuths` link if missing (`core.NewExternalAuth`).
    - Disabled user → error redirect.
-   - Success → `302 <return_url>/openid-cb?token=<rec.NewAuthToken()>`.
+   - Success → `302 <return_url>/openid-cb?token=<auth.IssueToken(rec)>` (same distinct-token helper as password login).
+
+Callback errors use Node's response shape: `400 {"status":"error","reason":…}`,
+not a browser redirect (`app-openid.ts` relays the reason from `accounts/openid.ts`;
+`invalid-or-expired-state`, `openid-grant-failed`, `user-not-found`, …). A 302 to
+`<returnUrl>/openid-cb?token=…` is only sent on success. `/openid/enable`,
+`/openid/disable` and `/openid/config` are not registered and return 404.
 
 **Acceptance:** Go tests drive the flow against a fake OIDC provider (`httptest` serving
-discovery, token, and userinfo) through PB's `oidc` provider. Run one manual login against a
-real provider (Authelia, Keycloak, or Google) and note the result in the PR.
+discovery, token, and userinfo) through PB's `oidc` provider. A Playwright run configures the
+fake provider in the admin API, clicks "Sign in with …", completes the flow, lands logged in,
+and checks the user menu hides "Change password" for the OAuth2-only user. Run one manual
+login against a real provider (Authelia, Keycloak, or Google) and note the result in the PR.
 
 ---
 
@@ -581,11 +649,11 @@ time**. That also blocks DNS rebinding. Keep the Node allow and deny semantics f
 
 ## 13. Phase 11: CLI (`internal/cli`, registered on `app.RootCmd`)
 
-| Command | Behaviour |
-|---|---|
-| `reset-password <email>` | Prompt twice with no echo (`golang.org/x/term`), then `SetPassword` + save. |
-| `create-owner <email>` | For headless installs: same as `/account/bootstrap`, refuses if any user exists. |
-| `health-check` | Port of `scripts/health-check.ts` (GET `/health`, exit 0/1). Used by Docker `HEALTHCHECK`. |
+| Command                  | Behaviour                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `reset-password <email>` | Prompt twice with no echo (`golang.org/x/term`), then `SetPassword` + save.                |
+| `create-owner <email>`   | For headless installs: same as `/account/bootstrap`, refuses if any user exists.           |
+| `health-check`           | Port of `scripts/health-check.ts` (GET `/health`, exit 0/1). Used by Docker `HEALTHCHECK`. |
 
 `enable-openid` / `disable-openid` are dropped. PB's built-in `superuser`,
 `migrate`, and `serve` commands stay available.
@@ -597,6 +665,7 @@ time**. That also blocks DNS rebinding. Keep the Node allow and deny semantics f
 A new server starts empty. The owner either opens the web app (bootstrap screen:
 email + password) or runs `create-owner`. Then they create or upload budgets from
 the browser's local copy.
+
 1. On first `serve`, create `actual_groups/` and run migrations. No other seeding.
 2. Backups are scheduled by the settings migration (§4.3). Document how to switch
    on S3 in the admin UI.
@@ -618,6 +687,7 @@ provider's Node `/status` handler first. With that in place the app runs, and
 bank sync shows as not set up.
 
 Then, per provider, as a **separate PR**:
+
 1. Port the HTTP client (`*-service.*`) with an `http.Client` timeout of 60s.
 2. Port the transaction normalisation. This is where the bugs hide. Port the
    provider's Node unit tests **first**, including fixtures, then make them pass.
@@ -626,10 +696,9 @@ Then, per provider, as a **separate PR**:
 
 Order: **SimpleFIN** (548 LOC) → **Enable Banking** (1.3k, JWT RS256 signing
 via `golang-jwt/jwt/v5`, which PB already depends on) → **Pluggy.ai** → **Akahu**
-(uses `util/mutex.ts`, so use a `sync.Mutex`) → **GoCardless** (4.5k). For GoCardless,
-port `integration-bank.ts` plus `bank-factory.ts` first, then each `banks/*.ts`
-normalizer as a table-driven Go struct implementing a `Bank` interface. Do **not**
-port GoCardless unless the owner confirms they use it.
+(uses `util/mutex.ts`, so use a `sync.Mutex`). **GoCardless is not ported**:
+it closed to new sign-ups in July 2025 and is winding down. Its `/status`
+endpoint stays the not-configured stub; the other GoCardless routes stay 404.
 
 ---
 
