@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -212,6 +213,8 @@ type fileSpec struct {
 	GroupID     *string
 	KeyID       *string
 	EncryptMeta *string
+	EncryptSalt *string
+	EncryptTest *string
 	SyncVersion *float64
 	Owner       string
 	Deleted     bool
@@ -239,6 +242,12 @@ func (h *harness) createFile(t *testing.T, spec fileSpec) *core.Record {
 	}
 	if spec.EncryptMeta != nil {
 		record.Set("encrypt_meta", *spec.EncryptMeta)
+	}
+	if spec.EncryptSalt != nil {
+		record.Set("encrypt_salt", *spec.EncryptSalt)
+	}
+	if spec.EncryptTest != nil {
+		record.Set("encrypt_test", *spec.EncryptTest)
 	}
 	if spec.SyncVersion != nil {
 		record.Set("sync_version", *spec.SyncVersion)
@@ -306,6 +315,154 @@ func (h *harness) do(request *http.Request) *httptest.ResponseRecorder {
 	return recorder
 }
 
+// patchJSON sends a PATCH with a JSON body.
+func (h *harness) patchJSON(t *testing.T, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPatch, path, bytes.NewReader(encoded))
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("X-Actual-Token", token)
+	}
+
+	return h.do(request)
+}
+
+// deleteJSON sends a DELETE with a JSON body.
+func (h *harness) deleteJSON(t *testing.T, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodDelete, path, bytes.NewReader(encoded))
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("X-Actual-Token", token)
+	}
+
+	return h.do(request)
+}
+
+// postJSONWithFile posts a JSON body with an X-Actual-File-Id header.
+func (h *harness) postJSONWithFile(t *testing.T, path string, body any, token, fileID string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(encoded))
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("X-Actual-Token", token)
+	}
+	request.Header.Set("X-Actual-File-Id", fileID)
+
+	return h.do(request)
+}
+
+// getWithHeaders sends a GET with the extra headers.
+func (h *harness) getWithHeaders(path, token string, headers map[string]string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	if token != "" {
+		request.Header.Set("X-Actual-Token", token)
+	}
+	for key, value := range headers {
+		request.Header.Set(key, value)
+	}
+
+	return h.do(request)
+}
+
+// uploadParams describes an upload request.
+type uploadParams struct {
+	FileID      string
+	GroupID     string
+	HasGroupID  bool
+	Name        string
+	Format      string
+	EncryptMeta string
+	Duplicate   bool
+	Content     []byte
+	Token       string
+}
+
+// upload posts a budget blob with the client's headers.
+func (h *harness) upload(t *testing.T, params uploadParams) *httptest.ResponseRecorder {
+	t.Helper()
+
+	request := httptest.NewRequest(http.MethodPost, "/sync/upload-user-file", bytes.NewReader(params.Content))
+	request.Header.Set("Content-Type", "application/encrypted-file")
+	if params.Token != "" {
+		request.Header.Set("X-Actual-Token", params.Token)
+	}
+	if params.Name != "" {
+		request.Header.Set("X-Actual-Name", url.PathEscape(params.Name))
+	}
+	if params.FileID != "" {
+		request.Header.Set("X-Actual-File-Id", params.FileID)
+	}
+	if params.HasGroupID {
+		request.Header.Set("X-Actual-Group-Id", params.GroupID)
+	}
+	if params.Format != "" {
+		request.Header.Set("X-Actual-Format", params.Format)
+	}
+	if params.EncryptMeta != "" {
+		request.Header.Set("X-Actual-Encrypt-Meta", params.EncryptMeta)
+		if params.Duplicate {
+			request.Header.Add("X-Actual-Encrypt-Meta", params.EncryptMeta)
+		}
+	}
+
+	return h.do(request)
+}
+
+// download fetches a budget blob.
+func (h *harness) download(t *testing.T, fileID, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return h.getWithHeaders("/sync/download-user-file", token, map[string]string{
+		"X-Actual-File-Id": fileID,
+	})
+}
+
+// grantAccess creates an actual_user_access row.
+func (h *harness) grantAccess(t *testing.T, userID, fileID string) {
+	t.Helper()
+
+	collection, err := h.app.FindCollectionByNameOrId("actual_user_access")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(collection)
+	record.Set("user_id", userID)
+	record.Set("file_id", fileID)
+	if err := h.app.Save(record); err != nil {
+		t.Fatalf("grant access: %v", err)
+	}
+}
+
+// fileRecord reads actual_files straight from PocketBase.
+func (h *harness) fileRecord(t *testing.T, fileID string) *core.Record {
+	t.Helper()
+
+	record, err := h.app.FindRecordById("actual_files", fileID)
+	if err != nil {
+		t.Fatalf("find file %s: %v", fileID, err)
+	}
+	return record
+}
+
 // postJSON posts a JSON body, like the web client does.
 func (h *harness) postJSON(t *testing.T, path string, body any, token string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -358,6 +515,16 @@ func messageAt(at time.Time, encrypted bool, content string) *pb.MessageEnvelope
 		IsEncrypted: encrypted,
 		Content:     []byte(content),
 	}
+}
+
+// decodeInto decodes a JSON response body into dst.
+func decodeInto(t *testing.T, recorder *httptest.ResponseRecorder, dst any) error {
+	t.Helper()
+
+	if err := json.Unmarshal(recorder.Body.Bytes(), dst); err != nil {
+		return fmt.Errorf("decode body %q: %w", recorder.Body.String(), err)
+	}
+	return nil
 }
 
 // jsonBody decodes a JSON response body.

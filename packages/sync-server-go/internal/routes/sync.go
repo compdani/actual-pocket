@@ -33,9 +33,25 @@ type sinceRequiredBody struct {
 	Status  string `json:"status"`
 }
 
+// registerSync binds the whole /sync API. Body limits are per route:
+// PocketBase's default is 32 MB, JSON routes use fileSizeLimitMB, the sync
+// payload uses fileSizeSyncLimitMB and uploads use the 50 MB file limit.
 func registerSync(actual *router.RouterGroup[*core.RequestEvent], opts Options) {
-	actual.POST("/sync/sync", opts.handleSync).
-		Bind(apis.BodyLimit(int64(opts.Config.Upload.FileSizeSyncLimitMB) << 20))
+	jsonLimit := apis.BodyLimit(int64(opts.Config.Upload.FileSizeLimitMB) << 20)
+	syncLimit := apis.BodyLimit(int64(opts.Config.Upload.FileSizeSyncLimitMB) << 20)
+	uploadLimit := apis.BodyLimit(int64(opts.Config.Upload.SyncEncryptedFileSizeLimitMB) << 20)
+
+	actual.POST("/sync/sync", opts.handleSync).Bind(syncLimit)
+
+	actual.POST("/sync/user-get-key", opts.userGetKey).Bind(jsonLimit)
+	actual.POST("/sync/user-create-key", opts.userCreateKey).Bind(jsonLimit)
+	actual.POST("/sync/reset-user-file", opts.resetUserFile).Bind(jsonLimit)
+	actual.POST("/sync/upload-user-file", opts.uploadUserFile).Bind(uploadLimit)
+	actual.GET("/sync/download-user-file", opts.downloadUserFile)
+	actual.POST("/sync/update-user-filename", opts.updateUserFilename).Bind(jsonLimit)
+	actual.GET("/sync/list-user-files", opts.listUserFiles)
+	actual.GET("/sync/get-user-file-info", opts.getUserFileInfo)
+	actual.POST("/sync/delete-user-file", opts.deleteUserFile).Bind(jsonLimit)
 }
 
 // handleSync ports app.post('/sync') from packages/sync-server/src/app-sync.ts.

@@ -25,6 +25,12 @@ func New(app core.App) *Store {
 // App exposes the underlying PocketBase app.
 func (s *Store) App() core.App { return s.app }
 
+// With returns a store bound to another app, used inside RunInTransaction so
+// every write goes through the transaction (using the outer app would deadlock).
+func (s *Store) With(app core.App) *Store {
+	return &Store{app: app}
+}
+
 // File is a row of actual_files with the nullable columns made explicit, so
 // the sync validation can mirror the Node server's `null` checks.
 type File struct {
