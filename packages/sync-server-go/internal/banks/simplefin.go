@@ -138,6 +138,7 @@ func (p *simplefinProvider) accounts(e *core.RequestEvent) error {
 			return simplefinServerDown(e)
 		}
 		if isInvalidSimpleFINAccessKey(accessKey) {
+			sensitiveLogf("actual-sensitive:simplefin", "SimpleFIN rejected the setup token claim: %s", truncate(accessKey, 200))
 			return simplefinInvalidToken(e)
 		}
 
