@@ -5,7 +5,7 @@
 // here comes from it, so a Go mismatch means a porting bug, not a stale test.
 //
 // Usage (from the repo root):
-//   corepack yarn workspace @actual-app/crdt build:node
+//   corepack pnpm --filter @actual-app/crdt run build:node
 //   node packages/sync-server-go/scripts/gen-crdt-fixtures.mjs
 //
 // `make fixtures` does both.
@@ -18,7 +18,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, '..', 'testdata', 'crdt');
 
 // @actual-app/crdt's entry point is TypeScript, which plain node cannot load.
-// Use the built bundle from `yarn workspace @actual-app/crdt build:node`.
+// Use the built bundle from `pnpm --filter @actual-app/crdt run build:node`.
 const crdtEntry = join(here, '..', '..', 'crdt', 'dist', 'index.js');
 
 let crdt;
@@ -28,7 +28,7 @@ try {
   console.error(`Could not load ${crdtEntry}:`);
   console.error(error.message);
   console.error(
-    '\nBuild it first: corepack yarn workspace @actual-app/crdt build:node',
+    '\nBuild it first: corepack pnpm --filter @actual-app/crdt run build:node',
   );
   process.exit(1);
 }

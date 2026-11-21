@@ -13,6 +13,6 @@ descriptive commit messages and pull request titles. Do not add `[AI]` prefixes,
 `Co-authored-by` trailers, or generated-by footers. Keep the configured author
 identity. Upstream contribution conventions do not override this fork's rules.
 
-Run `yarn typecheck` from the repository root before committing and let the normal
+Run `pnpm run typecheck` from the repository root before committing and let the normal
 Git hooks run. Do not skip hooks. Follow the repository rules for PR templates,
 GitHub comments, and Git safety.

@@ -12,7 +12,7 @@ Actual is a free, open-source, local-first personal finance tool with optional s
 
 ## Docker Quickstart
 
-Install Docker Engine with the Docker Compose plugin, or Docker Desktop. Run these commands from the repository root. Docker builds the web app and Go/PocketBase sync server from this fork; no local Node.js or Yarn installation is required. The first build downloads dependencies and translations and may take several minutes. The builder allows up to 8 GB for Node.js, so provide enough memory for the build.
+Install Docker Engine with the Docker Compose plugin, or Docker Desktop. Run these commands from the repository root. Docker builds the web app and Go/PocketBase sync server from this fork; no local Node.js or pnpm installation is required. The first build downloads dependencies and translations and may take several minutes. The builder allows up to 8 GB for Node.js, so provide enough memory for the build.
 
 ```sh
 git clone https://github.com/compdani/actual-pocket.git
@@ -127,10 +127,10 @@ the Go/PocketBase server. With the development dependencies installed, build
 and launch it from the repository root:
 
 ```sh
-yarn start:desktop:wails
+pnpm run start:desktop:wails
 ```
 
-Use `yarn build:desktop:wails` to build without launching. See the
+Use `pnpm run build:desktop:wails` to build without launching. See the
 [Wails desktop guide](packages/desktop-wails/README.md) for platform prerequisites,
 budget migration, output locations, and first-version limits. Electron remains
 available through the existing desktop commands during migration.

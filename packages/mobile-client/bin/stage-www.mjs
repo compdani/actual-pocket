@@ -1,4 +1,4 @@
-// Stages the mobile web build (`yarn build:browser --mobile`) into `www/` for
+// Stages the mobile web build (`pnpm run build:browser --mobile`) into `www/` for
 // Capacitor to copy into the native apps. Source maps are left out: nothing
 // on a phone reads them and they are around 70% of the web build, so shipping
 // them more than triples the installed app size.

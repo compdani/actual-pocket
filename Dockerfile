@@ -3,14 +3,14 @@ FROM node:24.22.1-bookworm AS web
 WORKDIR /app
 COPY . .
 ENV HUSKY=0
-ENV YARN_NETWORK_CONCURRENCY=8
-RUN yarn install --immutable
+RUN corepack enable pnpm
+RUN pnpm install --frozen-lockfile --network-concurrency=8
 # Lage requires a Git HEAD; the real .git is excluded from the build context.
 RUN git -c init.defaultBranch=master init -q \
     && git -c user.email=build@docker -c user.name=docker-build add -A \
     && git -c user.email=build@docker -c user.name=docker-build commit -qm build
 ENV NODE_OPTIONS=--max_old_space_size=8192
-RUN yarn build:browser
+RUN pnpm run build:browser
 
 FROM golang:1.27.0-bookworm AS gobuilder
 WORKDIR /src

@@ -18,14 +18,9 @@ artifacts.json
 .migrate
 .migrate-test
 
-# Yarn
+# Package managers
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
+.yarn/
 
 dist
 .idea

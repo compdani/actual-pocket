@@ -27,16 +27,12 @@ async function run(command, commandArgs, options = {}) {
   });
 }
 
-// Invoke the repo-pinned Yarn directly so this also works on Windows.
-const yarn = path.join(root, '.yarn/releases/yarn-4.17.1.cjs');
+// Invoke lage's JS entry through Node so this also works on Windows, where
+// package-manager and tool shims are `.cmd` files that `spawn` cannot run.
+const lage = path.join(root, 'node_modules/lage/dist/lage.js');
 // Browser translations are shared with the other native builds. Do not update
 // a developer's translations checkout here; an existing one is used as-is.
-await run(process.execPath, [
-  yarn,
-  'lage',
-  'build:wails',
-  '--to=@actual-app/web',
-]);
+await run(process.execPath, [lage, 'build:wails', '--to=@actual-app/web']);
 const webBuild = path.join(root, 'packages/desktop-client/build-wails');
 const staged = path.join(host, 'frontend/dist');
 await rm(staged, { recursive: true, force: true });

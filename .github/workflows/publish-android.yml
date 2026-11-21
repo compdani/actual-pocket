@@ -40,7 +40,7 @@ jobs:
           cache: 'false'
 
       - name: Build mobile web app
-        run: yarn build:browser --mobile
+        run: pnpm run build:browser --mobile
 
       # Secrets (all in the `release` environment):
       #
@@ -67,7 +67,7 @@ jobs:
           export ANDROID_VERSION_CODE=$(( $(date -u +%s) / 60 ))
           # The AAB command uses SHA-256 after cap build's SHA-1 signing.
           # Related upstream issue: https://github.com/ionic-team/capacitor/issues/8428
-          yarn workspace mobile-client release:android
+          pnpm --filter mobile-client run release:android
           apksigner verify packages/mobile-client/build/app-release-signed.apk
           jarsigner -verify -strict -keystore "$ANDROID_KEYSTORE_PATH" -storepass:env ANDROID_KEYSTORE_PASSWORD packages/mobile-client/build/app-release-signed.aab "$ANDROID_KEY_ALIAS"
 

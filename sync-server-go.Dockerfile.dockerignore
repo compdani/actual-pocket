@@ -2,12 +2,8 @@
 .git
 .lage
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
+.yarn
+.pnpm-store
 
 # Keep personal data and host build artifacts out of the image.
 data

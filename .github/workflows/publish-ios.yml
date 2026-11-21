@@ -63,7 +63,7 @@ jobs:
 
       # Build before any signing material lands on the runner.
       - name: Build web app
-        run: yarn build:browser --mobile
+        run: pnpm run build:browser --mobile
 
       - name: Import signing certificates
         env:
@@ -100,7 +100,7 @@ jobs:
           API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
           export XCODEBUILD_AUTH_ARGS="-authenticationKeyPath $RUNNER_TEMP/AuthKey.p8 -authenticationKeyID $API_KEY_ID -authenticationKeyIssuerID $API_ISSUER_ID"
-          yarn workspace mobile-client build:ipa
+          pnpm --filter mobile-client run build:ipa
 
       - name: Clean up signing material
         if: always()

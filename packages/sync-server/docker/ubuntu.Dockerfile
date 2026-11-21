@@ -5,17 +5,20 @@ RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-COPY .yarn ./.yarn
-COPY yarn.lock package.json .yarnrc.yml ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches
+
+RUN corepack enable pnpm
 COPY packages ./packages
 
-# Avoiding memory issues with ARMv7
-RUN if [ "$(uname -m)" = "armv7l" ]; then yarn config set taskPoolConcurrency 2; yarn config set networkConcurrency 5; fi
+# Install only the sync server and its workspace dependencies in production
+# mode, limiting concurrency on ARMv7 to avoid memory issues.
+RUN if [ "$(uname -m)" = "armv7l" ]; then \
+      LIMITS="--network-concurrency=5 --child-concurrency=2"; \
+    fi; \
+    pnpm install --frozen-lockfile --prod --filter "@actual-app/sync-server..." $LIMITS
 
-# Focus the workspaces in production mode
-RUN yarn workspaces focus @actual-app/sync-server --production
-
-# Dereference yarn's workspace:* symlinks so the prod stage can copy just node_modules.
+# Dereference pnpm's workspace:* symlinks so the prod stage can copy just node_modules.
 RUN cp -RL node_modules node_modules.real \
     && rm -rf node_modules \
     && mv node_modules.real node_modules

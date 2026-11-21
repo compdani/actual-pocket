@@ -24,7 +24,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if _, err := fs.Stat(assets, "index.html"); err != nil {
-		log.Fatal("Build the frontend first: yarn build:desktop:wails")
+		log.Fatal("Build the frontend first: pnpm run build:desktop:wails")
 	}
 	configDir, err := os.UserConfigDir()
 	if err != nil {

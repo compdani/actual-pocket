@@ -8,6 +8,7 @@
     "module": "es2022",
     "moduleResolution": "bundler",
     "customConditions": ["api"],
+    "types": ["vite/client", "vitest/globals", "node"],
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,

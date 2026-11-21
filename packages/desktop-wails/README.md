@@ -6,14 +6,14 @@ engine in a native WebView. It does not need Electron or Node at runtime.
 From the repository root:
 
 ```sh
-yarn build:desktop:wails
-yarn start:desktop:wails
+pnpm run build:desktop:wails
+pnpm run start:desktop:wails
 go -C packages/desktop-wails test -race ./...
 go -C packages/desktop-wails vet ./...
 ```
 
-Both Yarn commands build the frontend and Go host. `start:desktop:wails` then
-launches the result; it is not a live-reload development server. Node, Yarn, Go,
+Both pnpm commands build the frontend and Go host. `start:desktop:wails` then
+launches the result; it is not a live-reload development server. Node, pnpm, Go,
 and the [Wails platform build prerequisites](https://wails.io/quick-start/installation/)
 are required. A separately installed Wails CLI is not needed. Existing local
 translations are included; the script does not update the translations checkout.
@@ -54,5 +54,5 @@ WebView's storage.
 
 The built-in sync server, Electron's filesystem budget folders, full menu parity,
 and automatic desktop updates are not part of this first version. Existing
-`yarn start:desktop` and `yarn build:desktop` commands still use Electron while
+`pnpm run start:desktop` and `pnpm run build:desktop` commands still use Electron while
 the Wails version is being validated.

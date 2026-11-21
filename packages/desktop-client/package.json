@@ -139,7 +139,7 @@
   "scripts": {
     "start": "cross-env PORT=3001 vite",
     "start:browser": "cross-env ./bin/watch-browser",
-    "watch": "cross-env BROWSER=none yarn start",
+    "watch": "cross-env BROWSER=none pnpm run start",
     "build": "vite build",
     "build:browser": "vite build --mode=browser",
     "build:mobile": "vite build --mode=mobile",

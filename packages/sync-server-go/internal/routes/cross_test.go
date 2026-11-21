@@ -25,7 +25,7 @@ import (
 //
 // It skips when the prerequisites are missing:
 //   - node >= 24 on PATH (or ACTUAL_NODE_BIN pointing at one),
-//   - a built Node server (`corepack yarn workspace @actual-app/sync-server build`).
+//   - a built Node server (`corepack pnpm --filter @actual-app/sync-server run build`).
 func TestCrossImplementationMerkle(t *testing.T) {
 	nodeBin, nodeVersion := findNode(t)
 	if nodeBin == "" {
@@ -37,7 +37,7 @@ func TestCrossImplementationMerkle(t *testing.T) {
 		t.Fatalf("resolve Node server path: %v", err)
 	}
 	if _, err := os.Stat(nodeServer); err != nil {
-		t.Skip("Node server is not built; run: corepack yarn workspace @actual-app/sync-server build")
+		t.Skip("Node server is not built; run: corepack pnpm --filter @actual-app/sync-server run build")
 	}
 
 	const (

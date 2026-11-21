@@ -27,7 +27,7 @@ proto:
 # Regenerates testdata/crdt/*.json from the JS CRDT implementation, which is
 # the reference. Requires `corepack` and an installed node_modules.
 fixtures:
-	cd ../.. && corepack yarn workspace @actual-app/crdt build:node
+	cd ../.. && corepack pnpm --filter @actual-app/crdt run build:node
 	node scripts/gen-crdt-fixtures.mjs
 
 # Cross-platform static builds. Version comes from the Node package.json so
@@ -47,7 +47,7 @@ release:
 # End-to-end smoke test: empty server, bootstrap, API upload, two syncing
 # clients, backup during syncs, restore and sync again.
 smoke: build
-	cd ../.. && corepack yarn workspace @actual-app/api build
+	cd ../.. && corepack pnpm --filter @actual-app/api run build
 	node scripts/smoke.mjs
 
 clean:

@@ -1,0 +1,31 @@
+packages:
+  - packages/*
+
+# Match the previous Yarn node-modules linker: packages are hoisted to the
+# root node_modules, which tooling such as electron-builder relies on.
+nodeLinker: hoisted
+
+# Secure default: dependency build scripts do not run unless listed here.
+# better-sqlite3 is rebuilt explicitly with `pnpm run rebuild-electron` or
+# `pnpm run rebuild-node`.
+allowBuilds:
+  '@parcel/watcher': false
+  argon2: true
+  bcrypt: true
+  better-sqlite3: false
+  core-js: false
+  electron: true
+  electron-winstaller: false
+  esbuild: true
+  sharp: true
+
+# Supply-chain defense: don't install package versions published less than 3
+# days ago (in minutes), giving the community time to catch compromised
+# releases.
+minimumReleaseAge: 4320
+
+overrides:
+  serialize-javascript: ^7.0.5
+
+patchedDependencies:
+  vite-plugin-node-polyfills@0.28.0: patches/vite-plugin-node-polyfills@0.28.0.patch

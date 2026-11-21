@@ -1,23 +1,24 @@
 FROM alpine:3.23 AS builder
 
 # Install required packages
-RUN apk add --no-cache nodejs python3 openssl build-base
+RUN apk add --no-cache nodejs npm python3 openssl build-base
 
 WORKDIR /app
 
-COPY .yarn ./.yarn
-COPY yarn.lock package.json .yarnrc.yml ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches
 COPY packages ./packages
 
-# Alpine's Node.js package does not include Corepack, so expose the vendored
-# Yarn release on PATH.
-RUN ln -s /app/.yarn/releases/yarn-*.cjs /usr/local/bin/yarn
+# Alpine's Node.js package does not include Corepack, so install the pnpm
+# release pinned in package.json.
+RUN npm install -g "$(node -p "require('./package.json').packageManager")"
 
-# Avoiding memory issues with ARMv7
-RUN if [ "$(uname -m)" = "armv7l" ]; then yarn config set taskPoolConcurrency 2; yarn config set networkConcurrency 5; fi
-
-# Focus the workspaces in production mode
-RUN yarn workspaces focus @actual-app/sync-server --production
+# Install only the sync server and its workspace dependencies in production
+# mode, limiting concurrency on ARMv7 to avoid memory issues.
+RUN if [ "$(uname -m)" = "armv7l" ]; then \
+      LIMITS="--network-concurrency=5 --child-concurrency=2"; \
+    fi; \
+    pnpm install --frozen-lockfile --prod --filter "@actual-app/sync-server..." $LIMITS
 
 # better-sqlite3 only ships prebuilt binaries for x64 and arm64, so compile it
 # on any other architecture (armv6/armv7 images).
@@ -25,7 +26,7 @@ RUN if [ "$(node node_modules/better-sqlite3/lib/binding.js)" = "0" ]; then \
       cd node_modules/better-sqlite3 && node ../node-gyp/bin/node-gyp.js rebuild --release; \
     fi
 
-# Dereference yarn's workspace:* symlinks so the prod stage can copy just node_modules.
+# Dereference pnpm's workspace:* symlinks so the prod stage can copy just node_modules.
 RUN cp -RL node_modules node_modules.real \
     && rm -rf node_modules \
     && mv node_modules.real node_modules

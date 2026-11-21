@@ -83,7 +83,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.APPLE_SIGNING_P12_PASSWORD }}
           CSC_INSTALLER_LINK: ${{ secrets.APPLE_MAS_INSTALLER_P12_BASE64 }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.APPLE_MAS_INSTALLER_P12_PASSWORD }}
-        run: yarn workspace desktop-electron build:mas
+        run: pnpm --filter desktop-electron run build:mas
 
       - name: Clean up signing material
         if: always()

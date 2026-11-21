@@ -3,11 +3,11 @@
 #####################################################
 # This startup script is used by the docker container
 # to check if the node_modules folder is empty and
-# if so, run yarn to install the dependencies.
+# if so, run pnpm to install the dependencies.
 #####################################################
 
 if [ ! -d "node_modules" ] || [ "$(ls -A node_modules)" = "" ]; then
-    yarn
+    pnpm install
 fi
 
-BROWSER=0 yarn start:browser
+BROWSER=0 pnpm run start:browser

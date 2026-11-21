@@ -9,7 +9,7 @@ runs:
         node-version-file: .nvmrc
     - name: Install dependencies
       shell: bash
-      run: yarn workspaces focus @actual-app/ci-actions
+      run: corepack enable pnpm && pnpm install --frozen-lockfile --filter "@actual-app/ci-actions..."
     - name: Check release notes
       env:
         BASE_REF: ${{ github.event.pull_request.base.ref }}
