@@ -42,7 +42,7 @@ func Parse(s string) (*Timestamp, bool) {
 	}
 
 	counter, ok := parseInt(parts[3], 16)
-	if !ok || counter > MaxCounter {
+	if !ok {
 		return nil, false
 	}
 
@@ -161,6 +161,9 @@ func parseInt(s string, base int) (int, bool) {
 			break
 		}
 		value = value*base + digit
+		if value > MaxCounter {
+			return 0, false
+		}
 		digits++
 	}
 

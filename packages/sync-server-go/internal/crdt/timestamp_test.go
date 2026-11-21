@@ -143,3 +143,17 @@ func TestTimestampErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestTimestampRejectsOverflowingHexCounter(t *testing.T) {
+	const prefix = "2020-01-01T00:00:00.000Z-"
+	const node = "-0123456789ABCDEF"
+
+	for _, counter := range []string{"10000", "10000000000000000", "10000000000000001", "FFFFFFFFFFFFFFFF"} {
+		if value, ok := Parse(prefix + counter + node); ok {
+			t.Errorf("counter %q accepted as %d", counter, value.Counter())
+		}
+	}
+	if value, ok := Parse(prefix + "0000000000000000FFFF" + node); !ok || value.Counter() != MaxCounter {
+		t.Fatal("valid counter with leading zeroes was rejected")
+	}
+}
