@@ -1,160 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgPencil1 } from '@actual-app/components/icons/v2';
-import { styles } from '@actual-app/components/styles';
-import { Text } from '@actual-app/components/text';
-import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { loadAllFiles } from '#budgetfiles/budgetfilesSlice';
 import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
-import { useGlobalPref } from '#hooks/useGlobalPref';
-import { pushModal } from '#modals/modalsSlice';
-import { useDispatch } from '#redux';
 
-function FileLocationSettings() {
-  const [documentDir, _setDocumentDirPref] = useGlobalPref('documentDir');
-  const [_documentDirChanged, setDirChanged] = useState(false);
-  const { t } = useTranslation();
-  const dispatch = useDispatch();
-
-  async function onChooseDocumentDir() {
-    const chosenDirectory = await window.Actual.openFileDialog({
-      properties: ['openDirectory'],
-    });
-
-    if (chosenDirectory && documentDir && chosenDirectory[0] !== documentDir) {
-      setDirChanged(true);
-
-      dispatch(
-        pushModal({
-          modal: {
-            name: 'confirm-change-document-dir',
-            options: {
-              currentBudgetDirectory: documentDir,
-              newDirectory: chosenDirectory[0],
-            },
-          },
-        }),
-      );
-    }
-  }
-
-  return (
-    <View
-      style={{
-        gap: 15,
-        backgroundColor: theme.pillBackground,
-        alignSelf: 'flex-start',
-        alignItems: 'flex-start',
-        padding: 15,
-        borderRadius: 4,
-        border: '1px solid ' + theme.pillBorderDark,
-        width: '100%',
-      }}
-    >
-      <Text>
-        <Trans>
-          <strong>Actual's data directory</strong>{' '}
-          <small style={{ marginLeft: '0.5rem' }}>
-            <i>where your files are stored</i>
-          </small>
-        </Trans>
-      </Text>
-      <View style={{ flexDirection: 'row', gap: '0.5rem', width: '100%' }}>
-        <Text
-          title={documentDir}
-          style={{
-            backgroundColor: theme.pageBackground,
-            padding: '5px 10px',
-            borderRadius: 4,
-            overflow: 'auto',
-            whiteSpace: 'nowrap',
-            width: '100%',
-            ...styles.horizontalScrollbar,
-            '::-webkit-scrollbar': {
-              height: '8px',
-            },
-          }}
-        >
-          {documentDir}
-        </Text>
-        <Button onPress={onChooseDocumentDir} aria-label={t('Change location')}>
-          <SvgPencil1
-            style={{
-              width: 11,
-              height: 11,
-            }}
-          />
-        </Button>
-      </View>
-    </View>
-  );
-}
-
-function SelfSignedCertLocationSettings() {
-  const [serverSelfSignedCertPref, _setServerSelfSignedCertPref] =
-    useGlobalPref('serverSelfSignedCert');
-
-  if (!serverSelfSignedCertPref) {
-    return null;
-  }
-
-  return (
-    <View
-      style={{
-        gap: 15,
-        backgroundColor: theme.pillBackground,
-        alignSelf: 'flex-start',
-        alignItems: 'flex-start',
-        padding: 15,
-        borderRadius: 4,
-        border: '1px solid ' + theme.pillBorderDark,
-        width: '100%',
-      }}
-    >
-      <Text>
-        <Trans>
-          <strong>Server self-signed certificate</strong>{' '}
-          <small style={{ marginLeft: '0.5rem' }}>
-            <i>enables a secure connection</i>
-          </small>
-        </Trans>
-      </Text>
-      <View style={{ flexDirection: 'row', gap: '0.5rem', width: '100%' }}>
-        <Text
-          title={serverSelfSignedCertPref}
-          style={{
-            backgroundColor: theme.pageBackground,
-            padding: '5px 10px',
-            borderRadius: 4,
-            overflow: 'auto',
-            whiteSpace: 'nowrap',
-            width: '100%',
-            ...styles.horizontalScrollbar,
-            '::-webkit-scrollbar': {
-              height: '8px',
-            },
-          }}
-        >
-          {serverSelfSignedCertPref}
-        </Text>
-      </View>
-    </View>
-  );
-}
+import { CertificateSettings } from './CertificateSettings';
+import { FileLocationSettings } from './FileLocationSettings';
 
 export function FilesSettingsModal() {
   const { t } = useTranslation();
-
-  const dispatch = useDispatch();
-
-  function closeModal(close: () => void) {
-    void dispatch(loadAllFiles());
-    close();
-  }
+  const desktop = window.Actual.desktop;
 
   return (
     <Modal name="files-settings">
@@ -162,11 +19,7 @@ export function FilesSettingsModal() {
         <>
           <ModalHeader
             title={t('Settings')}
-            rightContent={
-              <ModalCloseButton
-                onPress={() => closeModal(() => state.close())}
-              />
-            }
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -178,8 +31,8 @@ export function FilesSettingsModal() {
               lineHeight: '1.5em',
             }}
           >
-            <FileLocationSettings />
-            <SelfSignedCertLocationSettings />
+            {desktop && <FileLocationSettings desktop={desktop} />}
+            {desktop && <CertificateSettings desktop={desktop} />}
             <Button
               variant="primary"
               style={{
@@ -187,7 +40,7 @@ export function FilesSettingsModal() {
                 fontSize: 14,
                 alignSelf: 'center',
               }}
-              onPress={() => closeModal(() => state.close())}
+              onPress={() => state.close()}
             >
               <Trans>OK</Trans>
             </Button>

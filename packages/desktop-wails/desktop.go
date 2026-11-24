@@ -14,16 +14,22 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// Desktop exposes only operations that require a native host. Budget queries,
-// storage, and sync continue to run in the existing browser worker.
+// Desktop exposes only operations that require a native host. Budget queries
+// and sync run in the browser worker, which stores budget files on disk
+// through budgetFilesAPI.
 type Desktop struct {
-	app     *application.App
-	window  *application.WebviewWindow
-	mu      sync.Mutex
-	ready   bool
-	quit    bool
-	oauth   *oauthReceiver
-	closing *time.Timer
+	app      *application.App
+	window   *application.WebviewWindow
+	settings *SettingsStore
+	server   *SyncServer
+	// Where budgets live until the user picks a folder
+	defaultDocumentDir string
+	mu                 sync.Mutex
+	ready              bool
+	quit               bool
+	oauth              *oauthReceiver
+	closing            *time.Timer
+	windowState        *windowState
 }
 
 type FileFilter struct {
@@ -38,6 +44,11 @@ type ImportedFile struct {
 
 func (d *Desktop) OpenFile(filters []FileFilter) (*ImportedFile, error) {
 	dialog := d.app.Dialog.OpenFile().CanChooseFiles(true).AttachToWindow(d.window)
+	if last := d.settings.Get().LastFileDialogDir; last != "" {
+		if info, err := os.Stat(last); err == nil && info.IsDir() {
+			dialog.SetDirectory(last)
+		}
+	}
 	for _, filter := range filters {
 		patterns := make([]string, 0, len(filter.Extensions))
 		for _, extension := range filter.Extensions {
@@ -48,6 +59,10 @@ func (d *Desktop) OpenFile(filters []FileFilter) (*ImportedFile, error) {
 	filename, err := dialog.PromptForSingleSelection()
 	if err != nil || filename == "" {
 		return nil, err
+	}
+	// Open the next import where this one came from
+	if err := d.settings.Update(func(s *Settings) { s.LastFileDialogDir = filepath.Dir(filename) }); err != nil {
+		log.Printf("could not remember the import folder: %v", err)
 	}
 	contents, err := os.ReadFile(filename)
 	if err != nil {
@@ -118,6 +133,14 @@ func (d *Desktop) LogError(message string) {
 	log.Printf("WebView: %s", message)
 }
 
+// quitting reports whether a quit was confirmed (or requested before the
+// app was ready), so closing the window should end the app.
+func (d *Desktop) quitting() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.quit
+}
+
 func (d *Desktop) shouldQuit() bool {
 	d.mu.Lock()
 	canQuit := !d.ready || d.quit
@@ -157,6 +180,10 @@ func (d *Desktop) offerForceQuit() {
 
 func (d *Desktop) shutdown() {
 	d.cancelClose()
+	if d.windowState != nil {
+		d.windowState.save()
+	}
+	d.server.Stop()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.oauth != nil {

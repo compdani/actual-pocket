@@ -2,20 +2,17 @@ packages:
   - packages/*
 
 # Match the previous Yarn node-modules linker: packages are hoisted to the
-# root node_modules, which tooling such as electron-builder relies on.
+# root node_modules.
 nodeLinker: hoisted
 
 # Secure default: dependency build scripts do not run unless listed here.
-# better-sqlite3 is rebuilt explicitly with `pnpm run rebuild-electron` or
-# `pnpm run rebuild-node`.
+# better-sqlite3 is rebuilt explicitly with `pnpm run rebuild-node`.
 allowBuilds:
   '@parcel/watcher': false
   argon2: true
   bcrypt: true
   better-sqlite3: false
   core-js: false
-  electron: true
-  electron-winstaller: false
   esbuild: true
   sharp: true
 

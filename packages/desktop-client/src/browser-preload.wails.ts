@@ -1,4 +1,4 @@
-// Wails runs the web worker, not the Electron/Node budgeting engine.
+// Wails runs the budgeting engine in the browser web worker.
 import './browser-preload.js';
 import { installWailsBridge } from './util/wails';
 import type { WailsRuntime } from './util/wails';

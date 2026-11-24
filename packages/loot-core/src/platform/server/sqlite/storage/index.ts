@@ -3,6 +3,7 @@ import * as connection from '#platform/server/connection';
 import { detectOpfsSyncAccess, PROBE_DIRECTORY } from './config';
 import { listSqliteFileRows } from './files-store';
 import { createMemoryIdbStore } from './idb-memory';
+import { createNativeStore } from './native';
 import { startOpfsKeepAlive } from './opfs-keep-alive';
 import type { OpfsKeepAlive } from './opfs-keep-alive';
 import { createOpfsStore } from './opfs-sahpool';
@@ -18,16 +19,21 @@ function reportMigration(phase: MigrationPhase, percent?: number) {
 }
 
 // Picks and prepares the store. `opfs` falls back to the in-memory store
-// when sync access handles are unavailable.
+// when sync access handles are unavailable. `native` (the desktop app) has
+// no fallback: its files live on disk, behind the desktop host.
 export async function initSqliteStorage(
   requested: FileStoreKind,
 ): Promise<FileStoreKind> {
+  keepAlive?.stop();
+  keepAlive = null;
+  if (requested === 'native') {
+    store = createNativeStore();
+    return 'native';
+  }
   const kind: FileStoreKind =
     requested === 'opfs' && (await detectOpfsSyncAccess())
       ? 'opfs'
       : 'memory-idb';
-  keepAlive?.stop();
-  keepAlive = null;
   if (kind === 'opfs') {
     store = createOpfsStore({ onMigrationProgress: reportMigration });
     // From here on, not from the first budget: the app can sit on the

@@ -15,18 +15,25 @@ export const init: typeof T.init = async () => {
 
 export const getDataDir: typeof T.getDataDir = () => getDocumentDir();
 
+// The API build copies these assets next to its bundle. Tests run this file
+// from source, where they live at the loot-core package root.
+const rootPath =
+  path.basename(__filename) === 'index.api.ts'
+    ? path.join(__dirname, '..', '..', '..', '..')
+    : __dirname;
+
 export const bundledDatabasePath: typeof T.bundledDatabasePath = path.join(
-  __dirname,
+  rootPath,
   'default-db.sqlite',
 );
 
 export const migrationsPath: typeof T.migrationsPath = path.join(
-  __dirname,
+  rootPath,
   'migrations',
 );
 
 export const demoBudgetPath: typeof T.demoBudgetPath = path.join(
-  __dirname,
+  rootPath,
   'demo-budget',
 );
 

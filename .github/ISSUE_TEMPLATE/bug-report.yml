@@ -86,7 +86,7 @@ body:
         - Fly.io
         - Pikapods
         - NAS
-        - Desktop App (Electron)
+        - Desktop App
         - Other
     validations:
       required: false
@@ -100,7 +100,7 @@ body:
         - Chrome
         - Safari
         - Microsoft Edge
-        - Desktop App (Electron)
+        - Desktop App
         - Other
   - type: dropdown
     id: operating-system

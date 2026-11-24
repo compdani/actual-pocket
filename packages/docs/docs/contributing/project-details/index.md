@@ -32,13 +32,13 @@ The React-based UI for web and desktop.
   - `src/hooks/` - Custom React hooks
   - `e2e/` - End-to-end tests
 
-### 3. desktop-electron (`packages/desktop-electron/`)
+### 3. desktop-wails (`packages/desktop-wails/`)
 
-Electron wrapper for the desktop application.
+Wails (Go) host for the desktop application.
 
-- **Purpose**: Provides the desktop application wrapper that allows stable use of the Actual Web App locally with or without internet or a sync-server
-- **Technology**: Electron for window management and native OS integration
-- **Note**: It is unlikely you will need to make changes here unless working on Electron-specific features
+- **Purpose**: Runs the web app and its web-worker database in a native WebView, so Actual can be used as a desktop app with or without a sync server
+- **Technology**: Wails for window management and native OS integration (file dialogs, external links, sign-in)
+- **Note**: It is unlikely you will need to make changes here unless working on desktop-specific features
 
 ### 4. api (`packages/api/` - aliased as `@actual-app/api`)
 

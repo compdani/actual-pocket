@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -24,7 +23,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if _, err := fs.Stat(assets, "index.html"); err != nil {
-		log.Fatal("Build the frontend first: pnpm run build:desktop:wails")
+		log.Fatal("Build the frontend first: pnpm run build:desktop")
 	}
 	configDir, err := os.UserConfigDir()
 	if err != nil {
@@ -34,18 +33,35 @@ func main() {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		log.Fatal(err)
 	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	settings, err := loadSettings(dataDir)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	desktop := &Desktop{}
+	desktop := &Desktop{
+		settings:           settings,
+		server:             newSyncServer(dataDir),
+		defaultDocumentDir: defaultDocumentDir(configDir, homeDir),
+	}
+	budgetFiles := &budgetFilesAPI{
+		documentDir: desktop.documentDir,
+		debug:       os.Getenv("ACTUAL_WAILS_DEBUG") == "1",
+	}
 	app := application.New(application.Options{
 		Name:        "Actual Pocket",
 		Description: fmt.Sprintf("Actual Pocket %s", version),
 		Services:    []application.Service{application.NewService(desktop)},
 		Assets: application.AssetOptions{
-			Handler:        frontendHandler(assets),
+			Handler:        frontendHandler(assets, budgetFiles),
 			DisableLogging: true,
 		},
 		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
+			// The window hides on close and returns from the Dock
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
 		Windows: application.WindowsOptions{
 			WebviewUserDataPath: filepath.Join(dataDir, "WebView2"),
@@ -67,6 +83,8 @@ func main() {
 		OnShutdown: desktop.shutdown,
 	})
 	desktop.app = app
+	// The local server must be up before the app asks it for anything
+	desktop.autoStartSyncServer()
 	desktop.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:               "actual-pocket",
 		Title:              "Actual Pocket",
@@ -76,26 +94,16 @@ func main() {
 		MinHeight:          600,
 		URL:                "/",
 		UseApplicationMenu: true,
-		DevToolsEnabled:    os.Getenv("ACTUAL_WAILS_DEBUG") == "1",
+		// Available from View > Toggle Developer Tools, as in the Electron app
+		DevToolsEnabled: true,
 	})
-	desktop.window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		if !desktop.shouldQuit() {
-			event.Cancel()
-		}
+	configureWindowBehaviour(desktop)
+	desktop.windowState = &windowState{desktop: desktop}
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		desktop.windowState.restore()
+		desktop.windowState.track()
 	})
-	menu := app.Menu.New()
-	if runtime.GOOS == "darwin" {
-		menu.AddRole(application.AppMenu)
-	}
-	menu.AddRole(application.FileMenu)
-	menu.AddRole(application.EditMenu)
-	menu.AddRole(application.WindowMenu)
-	if os.Getenv("ACTUAL_WAILS_DEBUG") == "1" {
-		menu.AddSubmenu("Develop").Add("Web Inspector").OnClick(func(_ *application.Context) {
-			desktop.window.OpenDevTools()
-		})
-	}
-	app.Menu.Set(menu)
+	app.Menu.Set(buildMenu(desktop))
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

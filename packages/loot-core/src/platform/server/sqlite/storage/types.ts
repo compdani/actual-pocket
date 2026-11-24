@@ -1,6 +1,6 @@
 import type { WasmDatabase } from '#platform/server/sqlite/wasm';
 
-export type FileStoreKind = 'opfs' | 'memory-idb';
+export type FileStoreKind = 'opfs' | 'memory-idb' | 'native';
 
 export type MigrationPhase = 'copy' | 'verify' | 'cleanup' | 'done' | 'failed';
 export type MigrationProgress = (

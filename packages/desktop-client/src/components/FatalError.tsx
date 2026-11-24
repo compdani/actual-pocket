@@ -9,7 +9,6 @@ import { SpaceBetween } from '@actual-app/components/space-between';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { isElectron } from '@actual-app/core/shared/environment';
 import { LazyLoadFailedError } from '@actual-app/core/shared/errors';
 
 import { useModalState } from '#hooks/useModalState';
@@ -83,10 +82,10 @@ function RenderSimple({ error }: RenderSimpleProps) {
       </Text>
     );
   } else if ('BackendInitFailure' in error && error.BackendInitFailure) {
-    msg = isElectron() ? (
+    msg = window.Actual.desktop ? (
       <Text>
         <Trans>
-          Actual's backend process failed to start or stopped unexpectedly.
+          Actual's budget engine failed to start or stopped unexpectedly.
           Restart the app to try again; if the problem persists, please get{' '}
           <Link variant="external" to="https://actualbudget.org/contact">
             in touch
@@ -183,10 +182,32 @@ function RenderDocumentDirError({ path, code }: RenderDocumentDirErrorProps) {
   );
 }
 
+function RenderLazyLoadError() {
+  return (
+    <SpaceBetween
+      direction="vertical"
+      style={{
+        paddingBottom: 15,
+        lineHeight: '1.5em',
+        fontSize: 15,
+      }}
+    >
+      <Text>
+        <Trans>
+          There was a problem loading one of the chunks of the application.
+          Please reload the page and try again. If the issue persists - there
+          might be an issue with either your internet connection and/or the
+          server where the app is hosted.
+        </Trans>
+      </Text>
+    </SpaceBetween>
+  );
+}
+
 /**
  * Lets the user pick a different budget data folder straight from the error
- * screen. The backend isn't running at this point, so the choice is saved by
- * the desktop app's main process and the app is relaunched.
+ * screen. The budget engine isn't running at this point, so the desktop host
+ * saves the choice and the app starts again.
  */
 function ChooseDocumentDirButton() {
   const { t } = useTranslation();
@@ -194,23 +215,25 @@ function ChooseDocumentDirButton() {
   const [chooseError, setChooseError] = useState('');
 
   async function chooseDirectory() {
+    const desktop = window.Actual.desktop;
+    if (!desktop) {
+      return;
+    }
     setChooseError('');
-
-    const chosenDirectories = await window.Actual.openFileDialog({
-      properties: ['openDirectory'],
-    });
-    const chosenDirectory = chosenDirectories?.[0];
+    const chosenDirectory = await desktop.chooseFolder(
+      t('Choose a folder for your budgets'),
+    );
     if (!chosenDirectory) {
       return;
     }
 
     setIsChanging(true);
     try {
-      await window.Actual.setDocumentDir(chosenDirectory);
+      await desktop.setDocumentDir(chosenDirectory);
       window.Actual.relaunch();
     } catch (error) {
-      // The raw failure (path, IPC wrapping, OS error text) goes to the
-      // console for diagnosis; the user gets a plain explanation.
+      // The raw failure goes to the console for diagnosis; the user gets a
+      // plain explanation.
       console.error('Could not change the data folder', error);
       setChooseError(
         t(
@@ -236,28 +259,6 @@ function ChooseDocumentDirButton() {
         </Text>
       )}
     </>
-  );
-}
-
-function RenderLazyLoadError() {
-  return (
-    <SpaceBetween
-      direction="vertical"
-      style={{
-        paddingBottom: 15,
-        lineHeight: '1.5em',
-        fontSize: 15,
-      }}
-    >
-      <Text>
-        <Trans>
-          There was a problem loading one of the chunks of the application.
-          Please reload the page and try again. If the issue persists - there
-          might be an issue with either your internet connection and/or the
-          server where the app is hosted.
-        </Trans>
-      </Text>
-    </SpaceBetween>
   );
 }
 
@@ -385,7 +386,9 @@ export function FatalError({ error: rawError }: FatalErrorProps) {
 
         <Paragraph>
           <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-            {isDocumentDirError && isElectron() && <ChooseDocumentDirButton />}
+            {isDocumentDirError && window.Actual.desktop && (
+              <ChooseDocumentDirButton />
+            )}
             <Button onPress={() => window.Actual.relaunch()}>
               <Trans>Restart app</Trans>
             </Button>

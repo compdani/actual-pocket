@@ -1,10 +1,3 @@
-import type EventEmitter from 'events';
-
-export type IpcClient = {
-  on: EventEmitter['on'];
-  emit: (name: string, data: unknown) => void;
-};
-
 type FileDialogOptions = {
   properties?: Array<'openFile' | 'openDirectory'>;
   filters?: {
@@ -13,12 +6,41 @@ type FileDialogOptions = {
   }[];
 };
 
+export type DesktopSyncServerStatus = {
+  // False when this build ships without the server
+  available: boolean;
+  running: boolean;
+  port: number;
+  autoStart: boolean;
+};
+
+// Native features of the desktop app (packages/desktop-wails), present only
+// there. Folder paths are real paths on this computer.
+export type DesktopHost = {
+  getDocumentDir: () => Promise<string>;
+  // A folder the user picked, or null when the dialog was cancelled
+  chooseFolder: (title?: string) => Promise<string | null>;
+  // Use another folder for budgets; the app reloads afterwards
+  setDocumentDir: (directory: string) => Promise<void>;
+  // Move the budgets into another folder and use it; the app reloads
+  // afterwards
+  moveBudgetDirectory: (directory: string) => Promise<void>;
+  revealDocumentDir: () => Promise<void>;
+  openInFileManager: (filepath: string) => Promise<void>;
+  getSyncServerStatus: () => Promise<DesktopSyncServerStatus>;
+  startSyncServer: (port: number) => Promise<void>;
+  stopSyncServer: () => Promise<void>;
+  // Adds a server certificate the user picks to the system's trust store.
+  // Resolves to a message for the user, or '' when cancelled.
+  trustCertificate: () => Promise<string>;
+};
+
 type Actual = {
   IS_DEV: boolean;
   IS_WAILS?: boolean;
+  desktop?: DesktopHost;
   ACTUAL_VERSION: string;
   openURLInBrowser: (url: string) => void;
-  openInFileManager: (filepath: string) => void;
   saveFile: (
     contents: string | Buffer,
     filename: string,
@@ -27,32 +49,12 @@ type Actual = {
   openFileDialog: (options: FileDialogOptions) => Promise<string[]>;
   relaunch: () => void;
   reload: (() => Promise<void>) | undefined;
-  restartElectronServer: () => void;
-  moveBudgetDirectory: (
-    currentBudgetDirectory: string,
-    newDirectory: string,
-  ) => Promise<void>;
-  /**
-   * Persists the budget data folder directly from the desktop app's main
-   * process, so it works even when the backend failed to start. Validates
-   * that the folder exists and is writable. The app must be relaunched
-   * afterwards for the change to take effect.
-   */
-  setDocumentDir: (directory: string) => Promise<void>;
   applyAppUpdate: () => Promise<void>;
-  ipcConnect: (callback: (client: IpcClient) => void) => void;
   getServerSocket: () => Promise<Worker | null>;
   setTheme: (theme: string) => void;
   logToTerminal: (...args: unknown[]) => void;
-  onEventFromMain: (
-    event: string,
-    listener: (...args: unknown[]) => void,
-  ) => void;
   isUpdateReadyForDownload: () => boolean;
   waitForUpdateReadyForDownload: () => Promise<void>;
-  startSyncServer: () => Promise<void>;
-  stopSyncServer: () => Promise<void>;
-  isSyncServerRunning: () => Promise<boolean>;
   startOAuthServer: () => Promise<string>;
 };
 

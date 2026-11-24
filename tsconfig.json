@@ -7,7 +7,6 @@
     { "path": "./packages/api" },
     { "path": "./packages/desktop-client" },
     { "path": "./packages/sync-server" },
-    { "path": "./packages/desktop-electron" },
     { "path": "./packages/cli" }
   ],
   "compilerOptions": {
@@ -40,7 +39,6 @@
     "node_modules",
     "**/node_modules/*",
     "**/build/*",
-    "**/build-electron/*",
     "**/build-mobile/*",
     "**/client-build/*",
     "**/dist/*",

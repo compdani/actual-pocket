@@ -121,7 +121,7 @@ NODE_ENV=development go -C packages/sync-server-go run .
 yarn start:desktop
 ```
 
-The Go development server listens on port 5006 and proxies the frontend to Vite on port 3001. Use port 5006 for the combined app. The inherited `yarn start:server-dev` and `yarn build:server` commands still target the legacy Node backend. Electron also retains its Node backend integration.
+The Go development server listens on port 5006 and proxies the frontend to Vite on port 3001. Use port 5006 for the combined app. The inherited `yarn start:server-dev` and `yarn build:server` commands still target the legacy Node backend.
 
 ### Building
 

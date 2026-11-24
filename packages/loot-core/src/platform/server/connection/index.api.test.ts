@@ -3,6 +3,9 @@ import { afterEach, expect, test, vi } from 'vitest';
 // oxlint-disable-next-line no-restricted-imports
 import { send } from './index.api';
 
+// The test setup mocks this module globally; exercise the real one here.
+vi.unmock('./index.api');
+
 afterEach(() => {
   vi.restoreAllMocks();
 });

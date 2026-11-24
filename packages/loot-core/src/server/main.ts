@@ -3,6 +3,7 @@ import * as asyncStorage from '#platform/server/asyncStorage';
 import * as connection from '#platform/server/connection';
 import * as fs from '#platform/server/fs';
 import { logger, setVerboseMode } from '#platform/server/log';
+import { NativeFolderError } from '#platform/server/native-host';
 import * as sqlite from '#platform/server/sqlite';
 import type { StorageBackend } from '#platform/server/sqlite';
 import { q } from '#shared/query';
@@ -169,7 +170,12 @@ async function setupDocumentsDir() {
     }
   }
 
-  let documentDir = await asyncStorage.getItem('document-dir');
+  // The desktop app's folder on disk is chosen in the desktop host, which
+  // maps it to the default document folder
+  let documentDir =
+    sqlite.getStorageBackend() === 'native'
+      ? null
+      : await asyncStorage.getItem('document-dir');
 
   // Test the existing documents directory to make sure it's a valid
   // path that exists, and if it errors fallback to the default one
@@ -192,7 +198,10 @@ async function setupDocumentsDir() {
     // Surface the exact folder and the filesystem error so the desktop app
     // can show the user what is blocking startup (e.g. Windows Controlled
     // Folder Access) instead of hanging on the loading screen.
-    throw new DocumentDirError(documentDir, error);
+    throw new DocumentDirError(
+      error instanceof NativeFolderError ? error.path : documentDir,
+      error,
+    );
   }
   fs._setDocumentDir(documentDir);
 }
@@ -237,7 +246,19 @@ export async function initApp(
     throw new Error('shared-array-buffer-missing');
   }
   asyncStorage.init();
-  await fs.init({ storage });
+  try {
+    // Before the filesystem lists the folder, so copied budgets show
+    if (storage === 'native') {
+      await sqlite.migrateBrowserBudgetsToNative();
+    }
+    await fs.init({ storage });
+  } catch (error) {
+    // The desktop host could not reach the budget folder on disk
+    if (error instanceof NativeFolderError) {
+      throw new DocumentDirError(error.path, error);
+    }
+    throw error;
+  }
   await setupDocumentsDir();
 
   const keysStr = await asyncStorage.getItem('encrypt-keys');

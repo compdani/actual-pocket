@@ -12,11 +12,9 @@ When Actual runs, it runs the front-end React-based web app, as well as a local 
 
 In the web app, the background server runs in a [web worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers). This allows the database operations to run in a separate thread, keeping the UI responsive.
 
-### Electron App
+### Desktop App
 
-In the Electron app, the background server runs as a [Node.js child process](https://nodejs.org/api/child_process.html) which communicates with the frontend over [WebSockets](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API). This allows the desktop app to use full Node.js capabilities while maintaining security through process isolation.
-
-Details of the motivation behind the usage of WebSockets in the Electron app can be found in [Pull Request #1003](https://github.com/actualbudget/actual/pull/1003).
+The desktop app is built with [Wails](https://wails.io). It loads the web app in a native WebView, so the background server runs in the same web worker as in the browser. The Go host only provides native features such as file dialogs, external links and sign-in.
 
 ## Core Package Structure
 
@@ -27,10 +25,10 @@ The code which is used by this background server, as well as code which is share
 The `loot-core` package uses conditional exports to provide platform-specific code:
 
 - **Browser exports**: Code that runs in the web worker or browser environment
-- **Node exports**: Code that runs in the Electron background process or Node.js API
+- **Node exports**: Code that runs in the Node.js API
 - **Shared code**: Code that works in both environments
 
-Platform resolution happens at build time via `package.json` exports. Don't directly reference platform-specific imports (`.api`, `.web`, `.electron`) - use the conditional exports instead.
+Platform resolution happens at build time via `package.json` exports. Don't directly reference platform-specific imports (`.api`, `.web`) - use the conditional exports instead.
 
 ## Build System
 

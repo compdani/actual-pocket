@@ -1,4 +1,8 @@
 import { sendCatch } from '@actual-app/core/platform/client/connection';
+import type {
+  DesktopHost,
+  DesktopSyncServerStatus,
+} from '@actual-app/core/typings/window';
 
 type FileFilter = { name: string; extensions: string[] };
 type ImportedFile = { name: string; contents: string };
@@ -12,6 +16,16 @@ type DesktopMethods = {
   ConfirmClose: () => void;
   CloseFailed: (message: string) => void;
   LogError: (message: string) => void;
+  GetDocumentDir: () => string;
+  ChooseFolder: (title: string) => string;
+  SetDocumentDir: (directory: string) => void;
+  MoveBudgetDirectory: (directory: string) => void;
+  RevealDocumentDir: () => void;
+  OpenInFileManager: (filepath: string) => void;
+  GetSyncServerStatus: () => DesktopSyncServerStatus;
+  StartSyncServer: (port: number) => void;
+  StopSyncServer: () => void;
+  TrustCertificate: () => string;
 };
 
 // This is the small subset of Wails' bundled runtime used by the bridge.
@@ -70,7 +84,34 @@ export function installWailsBridge(runtime: Promise<WailsRuntime>): void {
       }
     });
   });
-  window.Actual.openFileDialog = async ({ filters = [] }) => {
+  const desktop: DesktopHost = {
+    getDocumentDir: () => invoke('GetDocumentDir'),
+    chooseFolder: async (title = '') =>
+      (await invoke('ChooseFolder', title)) || null,
+    setDocumentDir: async directory => {
+      // Nothing may be written to the old folder after the switch
+      await flushWailsStorage();
+      await invoke('SetDocumentDir', directory);
+    },
+    moveBudgetDirectory: async directory => {
+      await flushWailsStorage();
+      await invoke('MoveBudgetDirectory', directory);
+    },
+    revealDocumentDir: () => invoke('RevealDocumentDir'),
+    openInFileManager: filepath => invoke('OpenInFileManager', filepath),
+    getSyncServerStatus: () => invoke('GetSyncServerStatus'),
+    startSyncServer: port => invoke('StartSyncServer', port),
+    stopSyncServer: () => invoke('StopSyncServer'),
+    trustCertificate: () => invoke('TrustCertificate'),
+  };
+  window.Actual.desktop = desktop;
+  window.Actual.openFileDialog = async ({ filters = [], properties = [] }) => {
+    if (properties.includes('openDirectory')) {
+      // Folders are used by the host (the budget folder), so their real
+      // path is returned rather than a copy in the worker
+      const folder = await desktop.chooseFolder();
+      return folder ? [folder] : [];
+    }
     const file = await invoke('OpenFile', filters);
     if (!file) {
       return [];

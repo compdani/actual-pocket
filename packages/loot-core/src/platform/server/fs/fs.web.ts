@@ -1,5 +1,7 @@
 import { join } from '#platform/server/fs/path-join';
 import * as idb from '#platform/server/indexeddb';
+import * as host from '#platform/server/native-host';
+import type { StorageBackend } from '#platform/server/sqlite';
 import { getSqliteStore } from '#platform/server/sqlite/storage/index';
 
 import { createMemFs } from './memfs';
@@ -16,7 +18,9 @@ import {
 // memory; persisted files under /documents keep their contents in the
 // IndexedDB `files` store, except sqlite files, which belong to the
 // sqlite storage (OPFS, or IndexedDB as a whole file). Bundled data files
-// are fetched on first read.
+// are fetched on first read. With the desktop app's `native` storage the
+// persisted files live on disk instead, read and written through the
+// desktop host.
 
 export const bundledDatabasePath: string = '/default-db.sqlite';
 export const migrationsPath: string = '/migrations';
@@ -31,6 +35,8 @@ const memfs = createMemFs();
 // memfs entry is `null` until then, like a persisted file's.
 const lazyFiles = new Map<string, () => Promise<Uint8Array>>();
 let customPersistedRoot: string | null = null;
+// Whether persisted files live on disk behind the desktop host
+let isNative = false;
 
 function isPersistedPath(filepath: string): boolean {
   const path = normalizePath(filepath);
@@ -109,6 +115,15 @@ async function _readFile(
     if (!memfs.exists(path)) {
       throw new Error('File does not exist: ' + path);
     }
+    if (isNative) {
+      const bytes = await host.readFile(path);
+      if (bytes == null) {
+        throw new Error('File does not exist: ' + path);
+      }
+      return opts?.encoding === 'utf8'
+        ? new TextDecoder().decode(bytes)
+        : bytes;
+    }
     const { store } = idb.getStore(await idb.openDatabase(), 'files');
     const item = await idb.get(store, path);
     if (item == null) {
@@ -141,6 +156,8 @@ async function _writeFile(
   if (isPersistedPath(path)) {
     if (isSqlitePath(path)) {
       await getSqliteStore().writeFile(path, toBytes(stored));
+    } else if (isNative) {
+      await host.writeFile(path, stored);
     } else {
       const { store } = idb.getStore(await idb.openDatabase(), 'files');
       await idb.set(store, { filepath: path, contents: stored });
@@ -158,6 +175,8 @@ async function _removeFile(filepath: string) {
   if (isPersistedPath(path)) {
     if (isSqlitePath(path)) {
       await getSqliteStore().removeFile(path);
+    } else if (isNative) {
+      await host.removeFile(path);
     } else {
       const { store } = idb.getStore(await idb.openDatabase(), 'files');
       await idb.del(store, path);
@@ -204,6 +223,16 @@ async function populateDefaultFilesystem() {
 }
 
 async function populateFileHierarchy() {
+  if (isNative) {
+    const { files, dirs } = await host.listFiles();
+    for (const dir of dirs) {
+      memfs.mkdirp(dir);
+    }
+    for (const path of files) {
+      memfs.writeFile(path, null);
+    }
+    return;
+  }
   const { store } = idb.getStore(await idb.openDatabase(), 'files');
   const request = store.getAllKeys();
   const paths = await new Promise<string[]>((resolve, reject) => {
@@ -216,7 +245,10 @@ async function populateFileHierarchy() {
   }
 }
 
-export const init = async function () {
+export const init = async function ({
+  storage,
+}: { storage?: StorageBackend } = {}) {
+  isNative = storage === 'native';
   // When a user "uploads" a file, we just put it in memory in this
   // dir and the backend takes it from there
   memfs.mkdirp('/uploads');
@@ -239,6 +271,9 @@ export const exists = async function (filepath: string) {
 
 export const mkdir = async function (filepath: string) {
   memfs.mkdir(filepath);
+  if (isNative && isPersistedPath(filepath)) {
+    await host.mkdir(normalizePath(filepath));
+  }
 };
 
 export const copyFile = async function (
@@ -287,6 +322,9 @@ export const removeFile = async function (filepath: string) {
 
 export const removeDir = async function (filepath: string) {
   memfs.rmdir(filepath);
+  if (isNative && isPersistedPath(filepath)) {
+    await host.removeDir(normalizePath(filepath));
+  }
 };
 
 async function listFiles(dirpath: string): Promise<string[]> {
@@ -331,7 +369,14 @@ export const removeDirRecursively = async function (dirpath: string) {
   }
 };
 
-export const getModifiedTime = async (_filepath: string): Promise<Date> => {
+export const getModifiedTime = async (filepath: string): Promise<Date> => {
+  if (isNative) {
+    const stats = await host.stat(normalizePath(filepath));
+    if (stats == null) {
+      throw new Error('File does not exist: ' + filepath);
+    }
+    return new Date(stats.mtimeMs);
+  }
   throw new Error(
     'getModifiedTime not supported on the web (only used for backups)',
   );

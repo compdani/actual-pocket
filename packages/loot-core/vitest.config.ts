@@ -12,6 +12,7 @@ export default defineConfig({
       'src/platform/client/browser-preload/storage-backend.test.ts',
       'src/platform/server/fs/index.test.ts',
       'src/platform/server/fs/fs.web.test.ts',
+      'src/platform/server/fs/fs.native.test.ts',
       'node_modules',
     ],
     onConsoleLog(log: string, type: 'stdout' | 'stderr'): boolean | void {
@@ -33,10 +34,10 @@ export default defineConfig({
       : ['default'],
   },
   ssr: {
-    resolve: { conditions: ['electron', 'module', 'node', 'development'] },
+    resolve: { conditions: ['api', 'module', 'node', 'development'] },
   },
   resolve: {
-    conditions: ['electron', 'module', 'browser', 'development'],
+    conditions: ['api', 'module', 'browser', 'development'],
   },
   plugins: [peggyLoader()],
 });

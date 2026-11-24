@@ -30,8 +30,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const debugSensitive = createDebug('actual-sensitive:gocardless');
 
-const ELECTRON_APP_ORIGIN = 'app://actual';
-
 function validateOrigin(origin: string | undefined) {
   let url;
   try {
@@ -46,12 +44,7 @@ function validateOrigin(origin: string | undefined) {
 }
 
 function resolveRedirectHost(req: Request) {
-  const { origin } = req.headers;
-  const host = req.get('host');
-  if (origin === ELECTRON_APP_ORIGIN && host) {
-    return `${req.protocol}://${host}`;
-  }
-  return validateOrigin(origin);
+  return validateOrigin(req.headers.origin);
 }
 
 const SAFE_ID = /^[a-zA-Z0-9_-]+$/;

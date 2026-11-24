@@ -4,7 +4,7 @@ import { SvgAlertTriangle } from '@actual-app/components/icons/v2';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
-import { isElectron, isWails } from '@actual-app/core/shared/environment';
+import { isWails } from '@actual-app/core/shared/environment';
 import * as Platform from '@actual-app/core/shared/platform';
 import { css } from '@emotion/css';
 
@@ -16,12 +16,7 @@ export function SharedArrayBufferWarning() {
   // Only show warning if SharedArrayBuffer is required and not supported.
   // The native mobile apps always run in the fallback mode (see
   // browser-preload/start.ts), so the warning is noise there.
-  if (
-    isElectron() ||
-    isWails() ||
-    Platform.isNativeMobileApp ||
-    hasSharedArrayBuffer
-  ) {
+  if (isWails() || Platform.isNativeMobileApp || hasSharedArrayBuffer) {
     return null;
   }
 

@@ -120,20 +120,20 @@ docker compose -f docker-compose.dev.yml up --build
 
 The development frontend runs at **http://localhost:3001**. This is separate from the production deployment above.
 
-## Wails Desktop Preview
+## Desktop App
 
-The Wails desktop preview reuses the browser budgeting engine and connects to
-the Go/PocketBase server. With the development dependencies installed, build
-and launch it from the repository root:
+The desktop app is built with Wails. It reuses the browser budgeting engine and
+connects to the Go/PocketBase server. With the development dependencies
+installed, build and launch it from the repository root:
 
 ```sh
-pnpm run start:desktop:wails
+pnpm run start:desktop
 ```
 
-Use `pnpm run build:desktop:wails` to build without launching. See the
-[Wails desktop guide](packages/desktop-wails/README.md) for platform prerequisites,
-budget migration, output locations, and first-version limits. Electron remains
-available through the existing desktop commands during migration.
+Use `pnpm run build:desktop` to build without launching. See the
+[desktop app guide](packages/desktop-wails/README.md) for platform prerequisites,
+budget migration, output locations, and current limits. The Electron app has
+been removed.
 
 ## Documentation
 

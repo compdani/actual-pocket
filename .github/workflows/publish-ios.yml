@@ -9,7 +9,6 @@ name: Publish iOS
 # Secrets (all in the `release` environment) and how to regenerate them:
 #
 # - APPLE_TEAM_ID: developer.apple.com -> Membership details -> Team ID.
-#   Shared with the Electron notarization workflows.
 # - APPLE_SIGNING_P12_BASE64 / APPLE_SIGNING_P12_PASSWORD: an "Apple
 #   Distribution" certificate plus its private key. Create one in Xcode
 #   (Settings -> Accounts -> Manage Certificates -> "+") or at

@@ -383,7 +383,7 @@
         ],
         "patterns": [
           {
-            "group": ["**/*.api", "**/*.electron"],
+            "group": ["**/*.api"],
             "message": "Don't directly reference imports from other platforms"
           },
           {
@@ -420,12 +420,6 @@
       "files": ["**/*.cjs", "packages/eslint-plugin-actual/lib/**/*.js"],
       "rules": {
         "typescript/no-var-requires": "off"
-      }
-    },
-    {
-      "files": ["packages/desktop-electron/**/*"],
-      "rules": {
-        "react/rules-of-hooks": "off"
       }
     },
     {
@@ -502,7 +496,6 @@
       "files": [
         "packages/api/**/*",
         "packages/desktop-client/**/*",
-        "packages/desktop-electron/**/*",
         "packages/loot-core/**/*",
         "packages/plugins-service/**/*",
         "packages/sync-server/**/*"

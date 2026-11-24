@@ -7,6 +7,7 @@ import * as asyncStorage from '#platform/server/asyncStorage';
 import * as connection from '#platform/server/connection';
 import * as fs from '#platform/server/fs';
 import { logger } from '#platform/server/log';
+import * as sqlite from '#platform/server/sqlite';
 import {
   BudgetInUseError,
   flushSqliteStorage,
@@ -736,7 +737,11 @@ async function _loadBudget(id: Budget['id']): Promise<{
     await prefs.savePrefs({ resetClock: false });
   }
 
-  if (!Platform.isBrowser && process.env.NODE_ENV !== 'test') {
+  // Backups need files on disk: Node, or the desktop app's storage
+  if (
+    (!Platform.isBrowser || sqlite.getStorageBackend() === 'native') &&
+    process.env.NODE_ENV !== 'test'
+  ) {
     startBackupService(id);
   }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button, ButtonWithLoading } from '@actual-app/components/button';
@@ -10,65 +10,52 @@ import { Information } from '#components/alerts';
 import { DirectoryDisplay } from '#components/common/DirectoryDisplay';
 import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
 import { Checkbox } from '#components/forms';
-import { useGlobalPref } from '#hooks/useGlobalPref';
-import { addNotification } from '#notifications/notificationsSlice';
-import { useDispatch } from '#redux';
+
+type ConfirmChangeDocumentDirModalProps = {
+  currentBudgetDirectory: string;
+  newDirectory: string;
+};
 
 export function ConfirmChangeDocumentDirModal({
   currentBudgetDirectory,
   newDirectory,
-}: {
-  currentBudgetDirectory: string;
-  newDirectory: string;
-}) {
+}: ConfirmChangeDocumentDirModalProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [moveFiles, setMoveFiles] = useState(false);
   const { t } = useTranslation();
-  const dispatch = useDispatch();
 
-  const restartElectronServer = useCallback(() => {
-    globalThis.window.Actual.restartElectronServer();
-  }, []);
-
-  const [_documentDir, setDocumentDirPref] = useGlobalPref(
-    'documentDir',
-    restartElectronServer,
-  );
-
-  const moveDirectory = async (close: () => void) => {
+  async function changeDirectory() {
+    const desktop = window.Actual.desktop;
+    if (!desktop) {
+      return;
+    }
     setError('');
     setLoading(true);
     try {
       if (moveFiles) {
-        await globalThis.window.Actual.moveBudgetDirectory(
-          currentBudgetDirectory,
-          newDirectory,
-        );
+        await desktop.moveBudgetDirectory(newDirectory);
+      } else {
+        await desktop.setDocumentDir(newDirectory);
       }
-
-      setDocumentDirPref(newDirectory);
-
-      dispatch(
-        addNotification({
-          notification: {
-            type: 'message',
-            message: t("Actual's data directory successfully changed."),
-          },
-        }),
-      );
-      close();
-    } catch (error) {
-      console.error('There was an error changing your directory', error);
+      // The budget engine lists the new folder when it starts again
+      window.Actual.relaunch();
+    } catch (changeError) {
+      console.error('There was an error changing your directory', changeError);
       setError(
         t(
-          'There was an error changing your directory, please check the directory and try again.',
+          'There was an error changing your directory, please check the directory and try again. {{reason}}',
+          {
+            reason:
+              changeError instanceof Error
+                ? changeError.message
+                : String(changeError),
+          },
         ),
       );
-    } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <Modal name="confirm-change-document-dir">
@@ -128,16 +115,14 @@ export function ConfirmChangeDocumentDirModal({
                 />
                 <Trans>Move files to new directory</Trans>
               </label>
-              {moveFiles && (
-                <Information style={{ color: theme.warningText, padding: 0 }}>
+              {moveFiles ? (
+                <Information style={{ padding: 0 }}>
                   <Trans>
-                    Files in the destination folder with the same name will be
-                    overwritten.
+                    Nothing in the destination folder is overwritten: the move
+                    stops if it already has a budget with the same name.
                   </Trans>
                 </Information>
-              )}
-
-              {!moveFiles && (
+              ) : (
                 <Information style={{ padding: 0 }}>
                   <Trans>
                     Your files won't be moved. You can manually move them to the
@@ -157,11 +142,7 @@ export function ConfirmChangeDocumentDirModal({
             >
               <Button
                 variant="normal"
-                style={{
-                  padding: '10px 30px',
-                  fontSize: 14,
-                  alignSelf: 'center',
-                }}
+                style={{ padding: '10px 30px', fontSize: 14 }}
                 onPress={() => state.close()}
               >
                 <Trans>Cancel</Trans>
@@ -169,12 +150,8 @@ export function ConfirmChangeDocumentDirModal({
               <ButtonWithLoading
                 variant="primary"
                 isLoading={loading}
-                style={{
-                  padding: '10px 30px',
-                  fontSize: 14,
-                  alignSelf: 'center',
-                }}
-                onPress={() => moveDirectory(() => state.close())}
+                style={{ padding: '10px 30px', fontSize: 14 }}
+                onPress={changeDirectory}
               >
                 <Trans>Change directory</Trans>
               </ButtonWithLoading>

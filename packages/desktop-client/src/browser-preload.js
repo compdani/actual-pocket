@@ -13,10 +13,9 @@ import { computeClientVersion } from './util/versions';
 
 const backendWorkerUrl = new URL('./browser-server.js', import.meta.url);
 
-// This file installs global variables that the app expects.
-// Normally these are already provided by electron, but in a real
-// browser environment this is where we initialize the backend and
-// everything else.
+// This file installs global variables that the app expects, initializes the
+// backend worker, and sets up everything else the browser and Wails builds
+// need.
 
 const IS_DEV = import.meta.env.DEV;
 const IS_WAILS = import.meta.env.MODE === 'wails';
@@ -43,12 +42,8 @@ const isOpenIdCallback = window.location.pathname
 // Which engine the backend uses for budget files: `?storage=opfs` once, or
 // the choice stored by the experimental setting. Resolved on the main
 // thread because the worker needs it in its init message.
-// Native WebViews do not always support SharedArrayBuffer. Prefer the modern
-// browser engine (OPFS, with IndexedDB fallback) for new Wails installations.
-if (IS_WAILS && localStorage.getItem('actual:storage-backend') == null) {
-  localStorage.setItem('actual:storage-backend', 'opfs');
-}
-const storageBackend = resolveStorageBackend();
+// The desktop app keeps budgets in a folder on disk, through its host.
+const storageBackend = IS_WAILS ? 'native' : resolveStorageBackend();
 
 // *** Start the backend ***
 //
@@ -146,22 +141,8 @@ global.Actual = {
       });
   },
 
-  startSyncServer: () => {
-    // Only for electron app
-  },
-
-  stopSyncServer: () => {
-    // Only for electron app
-  },
-
-  isSyncServerRunning: () => false,
-
   startOAuthServer: () => {
     return '';
-  },
-
-  restartElectronServer: () => {
-    // Only for electron app
   },
 
   openFileDialog: async ({ filters = [] }) => {
@@ -255,12 +236,6 @@ global.Actual = {
   openURLInBrowser: url => {
     window.open(url, '_blank');
   },
-  openInFileManager: () => {
-    // File manager not available in browser
-  },
-  onEventFromMain: () => {
-    // Only for electron app
-  },
   isUpdateReadyForDownload: () => isUpdateReadyForDownload,
   waitForUpdateReadyForDownload: () => isUpdateReadyForDownloadPromise,
   applyAppUpdate: async () => {
@@ -274,24 +249,11 @@ global.Actual = {
     });
   },
 
-  ipcConnect: () => {
-    // Only for electron app
-  },
   getServerSocket: async () => {
     return worker;
   },
 
   setTheme: theme => {
     window.__actionsForMenu.saveGlobalPrefs({ prefs: { theme } });
-  },
-
-  moveBudgetDirectory: () => {
-    // Only for electron app
-  },
-
-  setDocumentDir: async () => {
-    throw new Error(
-      'Changing the data folder is only available in the desktop app',
-    );
   },
 };

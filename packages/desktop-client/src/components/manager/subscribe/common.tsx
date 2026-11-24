@@ -4,7 +4,6 @@ import { useLocation } from 'react-router';
 
 import { theme } from '@actual-app/components/theme';
 import { send } from '@actual-app/core/platform/client/connection';
-import { isElectron } from '@actual-app/core/shared/environment';
 import type { Handlers } from '@actual-app/core/types/handlers';
 
 import {
@@ -70,7 +69,10 @@ export function useBootstrapped(redirect = true) {
 
           const isTransientFailure =
             'error' in result && result.error === 'network-failure';
-          if (isElectron() || isTransientFailure) {
+          // The desktop app may be pointed at its own server, stopped now:
+          // offer the server setup instead of dropping the server, as the
+          // Electron app did
+          if (window.Actual.desktop || isTransientFailure) {
             void navigate('/config-server');
             return;
           }

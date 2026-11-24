@@ -93,9 +93,6 @@ E2E tests are located in `packages/desktop-client/e2e/` and use Playwright as th
 # Run E2E tests for web
 yarn e2e
 
-# Desktop Electron E2E (includes full build)
-yarn e2e:desktop
-
 # Run E2E tests for a specific package
 yarn workspace @actual-app/web e2e
 

@@ -95,9 +95,8 @@ Builds `CGO_ENABLED=0` binaries for `linux/amd64`, `linux/arm64`,
 `darwin/arm64` and `windows/amd64` into `dist/`. The version comes from
 `packages/sync-server/package.json`.
 
-Electron packaging is intentionally **not** part of this change. The desktop
-app still forks the Node server; switching it to spawn the bundled Go binary is
-optional Phase 15 work and needs its own installer/updater testing.
+The desktop app (Wails) does not bundle a sync server; it connects to a
+deployed Go/PocketBase server.
 
 ## Smoke test
 
