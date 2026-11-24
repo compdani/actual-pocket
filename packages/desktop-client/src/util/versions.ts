@@ -62,8 +62,11 @@ export async function getLatestVersion(): Promise<string | 'unknown'> {
 
   try {
     const response = await fetch(
-      'https://api.github.com/repos/actualbudget/actual/releases/latest',
+      'https://api.github.com/repos/compdani/actual-pocket/releases/latest',
     );
+    if (!response.ok) {
+      return 'unknown';
+    }
     const json = await response.json();
     return json?.tag_name ?? 'unknown';
   } catch {

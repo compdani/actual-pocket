@@ -105,7 +105,7 @@ function About() {
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
             <Link
               variant="external"
-              to="https://actualbudget.org/docs/releases"
+              to="https://github.com/compdani/actual-pocket/releases"
               linkColor="purple"
             >
               <Trans>Release Notes</Trans>

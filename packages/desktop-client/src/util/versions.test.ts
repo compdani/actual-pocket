@@ -1,6 +1,45 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { cmpSemanticVersion, computeClientVersion } from './versions';
+import {
+  cmpSemanticVersion,
+  computeClientVersion,
+  getLatestVersion,
+} from './versions';
+
+vi.mock('@actual-app/core/shared/platform', () => ({
+  isPlaywright: false,
+  isNativeMobileApp: false,
+}));
+
+describe('getLatestVersion', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('checks Actual Pocket releases', async () => {
+    vi.stubEnv('REACT_APP_REVIEW_ID', '');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 'v26.11.1' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getLatestVersion()).resolves.toBe('v26.11.1');
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'https://api.github.com/repos/compdani/actual-pocket/releases/latest',
+    );
+  });
+
+  it('does not fall back to upstream when the fork has no release', async () => {
+    vi.stubEnv('REACT_APP_REVIEW_ID', '');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getLatestVersion()).resolves.toBe('unknown');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('cmpSemanticVersion', () => {
   it('compares major, minor and patch numerically', () => {
