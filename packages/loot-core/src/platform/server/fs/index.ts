@@ -24,7 +24,7 @@ export async function init({
   storage = 'legacy',
 }: { storage?: StorageBackend } = {}) {
   impl = storage === 'legacy' ? legacy : web;
-  await impl.init();
+  await impl.init({ storage });
 }
 
 export const _setDocumentDir = (dir: string) => impl._setDocumentDir(dir);

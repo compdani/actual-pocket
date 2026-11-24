@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
-import { isElectron } from '@actual-app/core/shared/environment';
 import { css } from '@emotion/css';
 
 import { addNotification } from '#notifications/notificationsSlice';
@@ -34,21 +33,22 @@ export function MobileLinkedNotes({
 
   const handleClick = async () => {
     if (isFilePath) {
-      if (isElectron()) {
-        // Open file in file manager
-        window.Actual?.openInFileManager(url);
-      } else {
-        // Browser fallback: copy to clipboard
-        await navigator.clipboard.writeText(url);
-        dispatch(
-          addNotification({
-            notification: {
-              type: 'message',
-              message: t('File path copied to clipboard'),
-            },
-          }),
-        );
+      const desktop = window.Actual.desktop;
+      if (desktop) {
+        // The desktop app shows the file in Finder or Explorer
+        await desktop.openInFileManager(url);
+        return;
       }
+      // The browser cannot open local files, so copy the path instead
+      await navigator.clipboard.writeText(url);
+      dispatch(
+        addNotification({
+          notification: {
+            type: 'message',
+            message: t('File path copied to clipboard'),
+          },
+        }),
+      );
     } else {
       // Open URL in browser
       const normalizedUrl = normalizeUrl(url);

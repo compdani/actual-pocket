@@ -32,6 +32,7 @@ export {
 } from './storage/errors';
 // Used by the legacy filesystem layer and its tests
 export { _getModule } from './engine.sqljs.legacy';
+export { migrateBrowserBudgetsToNative } from './storage/native-migration';
 export type { SqlJsModule } from './engine.sqljs.legacy';
 
 // The web sqlite module is a facade over two engines: the legacy sql.js
@@ -104,6 +105,7 @@ export async function init({
   // read OPFS pools, while the OPFS store adopts the fallback's rows, so
   // data the requested engine could not read means asking for OPFS instead
   // (which itself falls back where sync access handles are missing)
+  // (`native` keeps its files on disk, apart from the browser's stores)
   const requested =
     (storage === 'legacy' && (await hasMigratedSqliteFiles())) ||
     (storage === 'memory-idb' && (await hasMigratedSqliteFiles('opfs')))
@@ -247,7 +249,7 @@ export function transaction(
   }
 }
 
-// See the comment about this function in index.electron.ts. You
+// See the comment about this function in index.api.ts. You
 // shouldn't normally use this. I'd like to get rid of it.
 export async function asyncTransaction(db: Database, fn: () => Promise<void>) {
   // Support nested transactions by "coalescing" them into the parent

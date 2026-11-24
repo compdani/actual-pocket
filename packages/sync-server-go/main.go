@@ -74,7 +74,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	cli.Register(app, cfg)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		// Electron and Docker health checks wait for this exact line.
+		// Docker health checks wait for this exact line.
 		se.StartBannerFunc = func(_ string) {
 			fmt.Fprintf(stdout, "Listening on %s:%d...\n", cfg.Hostname, cfg.Port)
 		}

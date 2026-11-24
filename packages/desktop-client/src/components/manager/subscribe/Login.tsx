@@ -9,7 +9,7 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
-import { isElectron, isWails } from '@actual-app/core/shared/environment';
+import { isWails } from '@actual-app/core/shared/environment';
 import * as Platform from '@actual-app/core/shared/platform';
 
 import { useAvailableLoginMethods } from '#components/ServerContext';
@@ -18,7 +18,7 @@ import { loggedIn } from '#users/usersSlice';
 
 import { Title, useBootstrapped } from './common';
 
-// Electron and the native mobile apps sign in with the provider in the system
+// The desktop and native mobile apps sign in with the provider in the system
 // browser, so they need a return URL that lands back in the app instead of the
 // web view's own origin. The mobile apps register the `actualbudget://` scheme
 // (see useMobileOpenIdCallback for the receiving side); `localhost` is the host
@@ -28,7 +28,7 @@ import { Title, useBootstrapped } from './common';
 // this page. (window.open would be popup-blocked, since the click's user
 // gesture has expired by the time the sign-in request resolves.)
 async function getOpenIdReturnUrl() {
-  if (isElectron() || isWails()) {
+  if (isWails()) {
     return window.Actual.startOAuthServer();
   }
   if (Platform.isNativeMobileApp) {
@@ -133,7 +133,7 @@ function OpenIdLogin({ setError }) {
       return;
     }
 
-    if (isElectron() || isWails()) {
+    if (isWails()) {
       window.Actual?.openURLInBrowser(redirectUrl);
     } else {
       window.location.assign(redirectUrl);

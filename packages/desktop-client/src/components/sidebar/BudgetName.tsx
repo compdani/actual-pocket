@@ -9,7 +9,6 @@ import { Input } from '@actual-app/components/input';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { isElectron } from '@actual-app/core/shared/environment';
 import * as Platform from '@actual-app/core/shared/platform';
 
 import { closeBudget } from '#budgetfiles/budgetfilesSlice';
@@ -73,7 +72,8 @@ function EditableBudgetName() {
         text: t('Settings'),
         onClick: () => void navigate('/settings'),
       },
-      isElectron() && {
+      // Backups are taken where budgets live on disk: the desktop app
+      !!window.Actual.desktop && {
         name: 'loadBackup',
         text: t('Load Backup…'),
         onClick: () =>

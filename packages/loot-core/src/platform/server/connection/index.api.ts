@@ -28,3 +28,7 @@ export const send: T.Send = function (type, args) {
 export const getNumClients: T.GetNumClients = function () {
   return 1;
 };
+
+export const resetEvents: T.ResetEvents = function () {
+  // The API keeps no event log to reset
+};

@@ -17,7 +17,7 @@ go -C packages/sync-server-go vet ./...
 NODE_ENV=development go -C packages/sync-server-go run .
 ```
 
-Run `pnpm run start` separately for the development frontend. The inherited Node backend commands below remain for legacy code and Electron; Docker uses Go/PocketBase.
+Run `pnpm run start` separately for the development frontend. The inherited Node backend commands below remain for legacy code; Docker uses Go/PocketBase. The desktop app is `packages/desktop-wails/` (Wails), which runs the browser build in a native WebView.
 
 ## Project Overview
 
@@ -49,7 +49,7 @@ pnpm run start
 # Start with sync server
 pnpm run start:server-dev
 
-# Start desktop app development
+# Build and launch the Wails desktop app
 pnpm run start:desktop
 ```
 
@@ -130,12 +130,18 @@ The React-based UI for web and desktop.
   pnpm --filter @actual-app/web run vrt
   ```
 
-#### 3. **desktop-electron** (`packages/desktop-electron/`)
+#### 3. **desktop-wails** (`packages/desktop-wails/`)
 
-Electron wrapper for the desktop application.
+Wails (Go) host for the desktop application.
 
-- Window management and native OS integration
-- E2E tests for Electron-specific features
+- Runs the browser build and web-worker budgeting engine in a native WebView
+- Native file dialogs, external links, loopback OAuth sign-in and menus
+- Commands:
+
+  ```bash
+  pnpm run build:desktop
+  go -C packages/desktop-wails test ./...
+  ```
 
 #### 4. **api** (`packages/api/` - aliased as `@actual-app/api`)
 
@@ -241,9 +247,6 @@ pnpm --filter @actual-app/core run test
 # Run E2E tests for web
 pnpm run e2e
 
-# Desktop Electron E2E (includes full build)
-pnpm run e2e:desktop
-
 # Visual regression tests
 pnpm run vrt
 
@@ -328,7 +331,7 @@ directory (e.g. `.claude/skills/impeccable/`) is missing, install it with
 
 - Use conditional exports in `loot-core` for platform-specific code; platform
   resolution happens at build time via package.json exports. Don't directly
-  import another platform's modules (`.api`, `.electron`).
+  import another platform's modules (`.api`).
 
 For commit and PR rules, see
 [PR and Commit Rules](.github/agents/pr-and-commit-rules.md).
@@ -441,7 +444,7 @@ pnpm --filter @actual-app/web run playwright test accounts.test.ts --browser=chr
 # Browser build
 pnpm run build:browser
 
-# Desktop build
+# Desktop build (Wails)
 pnpm run build:desktop
 
 # API build
@@ -497,7 +500,7 @@ Run `pnpm run lint` to check. All rules — including the custom `actual/*` rule
 
 1. Check `tsconfig.json` for path mappings
 2. Check package.json `exports` field (especially for loot-core)
-3. Verify platform-specific imports (`.electron`, `.api`)
+3. Verify platform-specific imports (`.api`)
 4. Use absolute imports in `desktop-client`
 
 ### Build Failures
@@ -578,7 +581,7 @@ pnpm run install:server
 
 - **Node.js**: >=22
 - **pnpm**: >=12.21.0 (pinned by the packageManager field; run `corepack enable pnpm`)
-- **Browser Targets**: Electron >= 35.0, modern browsers (see browserslist)
+- **Browser Targets**: modern browsers and the system WebViews used by Wails (see browserslist)
 
 ## Migration Notes
 

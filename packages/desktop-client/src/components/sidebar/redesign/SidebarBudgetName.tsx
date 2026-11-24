@@ -11,7 +11,6 @@ import { theme } from '@actual-app/components/theme';
 import { spacing } from '@actual-app/components/tokens';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
-import { isElectron } from '@actual-app/core/shared/environment';
 import { css, cx } from '@emotion/css';
 
 import { useMetadataPref } from '#hooks/useMetadataPref';
@@ -89,7 +88,7 @@ export function SidebarBudgetName({
             style={{ color: theme.sidebarTextSubdued }}
           />
         </Button>
-        {isElectron() && (
+        {window.Actual.desktop && (
           <Tooltip
             content={t('Load Backup…')}
             placement="bottom start"

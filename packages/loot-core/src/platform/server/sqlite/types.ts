@@ -2,7 +2,7 @@
 export type SqlParam = string | number | null;
 
 // Opaque handles for an open database and a prepared statement. Each
-// platform module (web wasm, web legacy sql.js, electron better-sqlite3)
+// platform module (web wasm, web legacy sql.js, Node better-sqlite3)
 // casts to its own concrete type internally; callers only pass them back
 // into that same module.
 declare const databaseBrand: unique symbol;
@@ -22,8 +22,10 @@ export type TransactionOptions = {
 // Which storage backs sqlite on the web. `legacy` is sql.js over absurd-sql
 // (IndexedDB blocks, needs SharedArrayBuffer); the other two use the
 // official sqlite-wasm build, persisted to OPFS or, when sync access
-// handles are unavailable, to IndexedDB as a whole file.
-export type StorageBackend = 'legacy' | 'opfs' | 'memory-idb';
+// handles are unavailable, to IndexedDB as a whole file. `native` is the
+// desktop app's: sqlite-wasm in memory, saved as whole files to a folder on
+// disk through the desktop host.
+export type StorageBackend = 'legacy' | 'opfs' | 'memory-idb' | 'native';
 
 // What a web sqlite engine provides to the facade in `index.ts`
 export type SqliteEngine = {

@@ -76,7 +76,7 @@ Use custom hooks from `src/hooks` instead of importing directly from react-route
 
 ## Platform-Specific Code
 
-- **Don't directly reference platform-specific imports**: Avoid importing `.api`, `.web`, or `.electron` directly
+- **Don't directly reference platform-specific imports**: Avoid importing `.api` or `.web` directly
 - **Use conditional exports**: Use conditional exports in `loot-core` for platform-specific code
 - **Build-time resolution**: Platform resolution happens at build time via package.json exports
 

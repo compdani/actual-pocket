@@ -146,13 +146,7 @@ export type GlobalPrefs = Partial<{
   installedCustomLightTheme?: string; // JSON of InstalledTheme for light custom theme (also used as single custom theme in non-auto mode)
   installedCustomDarkTheme?: string; // JSON of InstalledTheme for auto-mode dark custom theme
   customCssOverride?: string; // User-pasted CSS override applied on top of any theme. Empty string or undefined means no override.
-  documentDir: string; // Electron only
-  serverSelfSignedCert: string; // Electron only
-  syncServerConfig?: {
-    // Electron only
-    autoStart?: boolean;
-    port?: number;
-  };
+  documentDir: string; // Only meaningful where budgets live on the filesystem (Node API)
   notifyWhenUpdateIsAvailable: boolean;
   lastSeenNewsDate: string; // YYYY-MM-DD of the newest news entry the user has seen on this device
   showNewsFeed: boolean; // Whether in-app notifications (bell, Notifications page, release toast) are shown.
@@ -181,8 +175,6 @@ export type GlobalPrefsJson = Partial<{
   'custom-css-override'?: GlobalPrefs['customCssOverride'];
   plugins?: string; // "true" or "false"
   'plugin-theme'?: string; // JSON string of complete plugin theme (current selected plugin theme)
-  'server-self-signed-cert'?: GlobalPrefs['serverSelfSignedCert'];
-  syncServerConfig?: GlobalPrefs['syncServerConfig'];
   notifyWhenUpdateIsAvailable?: GlobalPrefs['notifyWhenUpdateIsAvailable'];
   lastSeenNewsDate?: GlobalPrefs['lastSeenNewsDate'];
   showNewsFeed?: GlobalPrefs['showNewsFeed'];

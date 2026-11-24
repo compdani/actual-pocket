@@ -12,7 +12,7 @@ func TestFrontendReloadsAndOAuthCallback(t *testing.T) {
 	assets := fstest.MapFS{
 		"index.html": {Data: []byte("<!DOCTYPE html><div id=\"root\"></div>")},
 	}
-	handler := frontendHandler(assets)
+	handler := frontendHandler(assets, http.NotFoundHandler())
 	for _, target := range []string{"/", "/budget", "/accounts/test-account", "/openid-cb?token=test"} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))

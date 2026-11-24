@@ -12,7 +12,6 @@ import { theme } from '@actual-app/components/theme';
 import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { listen } from '@actual-app/core/platform/client/connection';
-import { isElectron } from '@actual-app/core/shared/environment';
 
 import { getLatestAppVersion } from '#app/appSlice';
 import { closeBudget } from '#budgetfiles/budgetfilesSlice';
@@ -300,7 +299,7 @@ export function GeneralSettings() {
         </SettingsGroup>
       )}
       <SettingsGroup title={t('Data')}>
-        {isElectron() && <Backups />}
+        {window.Actual.desktop && <Backups />}
         <ExportBudget />
       </SettingsGroup>
     </SettingsSections>

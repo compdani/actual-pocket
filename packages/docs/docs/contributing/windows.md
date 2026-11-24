@@ -11,11 +11,11 @@ Many of the build scripts are bash scripts and not natively invocable in Windows
 7. From still inside the shell, run `yarn start:browser`.
 8. Open your browser to [http://localhost:3001](http://localhost:3001).
 
-## How to Build the Electron App on Windows
+## How to Build the Desktop App on Windows
 
 1. Follow steps 1 - 6 above.
-2. Run `yarn start`. If you get an error about bundle.desktop.js, just <Key mod="ctrl" k="c" /> and rerun `yarn start`.
-3. If you get an error from electron, run `yarn rebuild-electron` and rerun `yarn start`.
+2. Install [Go](https://go.dev/dl/) and the [Wails platform prerequisites](https://wails.io/quick-start/installation/).
+3. Run `pnpm run start:desktop`.
 
 # Errors
 

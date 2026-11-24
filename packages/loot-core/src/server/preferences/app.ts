@@ -124,15 +124,6 @@ async function saveGlobalPrefs(prefs: GlobalPrefs) {
   if (prefs.customCssOverride !== undefined) {
     await asyncStorage.setItem('custom-css-override', prefs.customCssOverride);
   }
-  if (prefs.serverSelfSignedCert !== undefined) {
-    await asyncStorage.setItem(
-      'server-self-signed-cert',
-      prefs.serverSelfSignedCert,
-    );
-  }
-  if (prefs.syncServerConfig !== undefined) {
-    await asyncStorage.setItem('syncServerConfig', prefs.syncServerConfig);
-  }
   if (prefs.notifyWhenUpdateIsAvailable !== undefined) {
     await asyncStorage.setItem(
       'notifyWhenUpdateIsAvailable',
@@ -161,8 +152,6 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
     'installed-custom-theme': installedCustomLightTheme,
     'installed-custom-dark-theme': installedCustomDarkTheme,
     'custom-css-override': customCssOverride,
-    'server-self-signed-cert': serverSelfSignedCert,
-    syncServerConfig,
     notifyWhenUpdateIsAvailable,
     lastSeenNewsDate,
     showNewsFeed,
@@ -178,8 +167,6 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
     'installed-custom-theme',
     'installed-custom-dark-theme',
     'custom-css-override',
-    'server-self-signed-cert',
-    'syncServerConfig',
     'notifyWhenUpdateIsAvailable',
     'lastSeenNewsDate',
     'showNewsFeed',
@@ -205,8 +192,6 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
     installedCustomLightTheme: installedCustomLightTheme || undefined,
     installedCustomDarkTheme: installedCustomDarkTheme || undefined,
     customCssOverride: customCssOverride || undefined,
-    serverSelfSignedCert: serverSelfSignedCert || undefined,
-    syncServerConfig: syncServerConfig || undefined,
     notifyWhenUpdateIsAvailable:
       notifyWhenUpdateIsAvailable === undefined
         ? true

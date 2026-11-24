@@ -9,9 +9,13 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-func frontendHandler(assets fs.FS) http.Handler {
+func frontendHandler(assets fs.FS, budgetFiles http.Handler) http.Handler {
 	bundled := application.BundledAssetFileServer(assets)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, fsAPIPrefix) {
+			budgetFiles.ServeHTTP(w, r)
+			return
+		}
 		// React Router uses real paths. Wails' file server doesn't fall back
 		// to index.html, so a full reload on /budget would otherwise be blank.
 		// Keep runtime and asset failures as 404s rather than returning HTML.

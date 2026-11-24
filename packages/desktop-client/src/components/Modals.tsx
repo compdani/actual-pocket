@@ -171,6 +171,10 @@ export function Modals() {
         case 'copy-widget-to-dashboard':
           return <CopyWidgetToDashboardModal key={key} {...modal.options} />;
 
+        case 'files-settings':
+          return <FilesSettingsModal key={key} />;
+        case 'confirm-change-document-dir':
+          return <ConfirmChangeDocumentDirModal key={key} {...modal.options} />;
         case 'load-backup':
           return (
             <LoadBackupModal
@@ -402,10 +406,6 @@ export function Modals() {
           return <DuplicateFileModal key={key} {...modal.options} />;
         case 'import':
           return <ImportModal key={key} />;
-        case 'files-settings':
-          return <FilesSettingsModal key={key} />;
-        case 'confirm-change-document-dir':
-          return <ConfirmChangeDocumentDirModal key={key} {...modal.options} />;
         case 'import-ynab4':
           return <ImportYNAB4Modal key={key} />;
         case 'import-ynab5':

@@ -10,21 +10,13 @@ module.exports = {
     },
     test: {
       type: 'npmScript',
-      options: {
-        outputGlob: [
-          'coverage/**',
-          '**/test-results/**',
-          '**/playwright-report/**',
-        ],
-      },
+      outputs: ['coverage/**', '**/test-results/**', '**/playwright-report/**'],
     },
     build: {
       type: 'npmScript',
       dependsOn: ['^build'],
       cache: true,
-      options: {
-        outputGlob: BUILD_OUTPUT_GLOBS,
-      },
+      outputs: BUILD_OUTPUT_GLOBS,
     },
     // Not cached: the script stages files into public/ and build-stats/ that
     // fall outside BUILD_OUTPUT_GLOBS, so a cache hit would skip the side
@@ -50,15 +42,15 @@ module.exports = {
       type: 'npmScript',
       dependsOn: ['^build', '@actual-app/web#build:mobile'],
       cache: true,
-      options: {
-        outputGlob: BUILD_OUTPUT_GLOBS,
-      },
+      outputs: BUILD_OUTPUT_GLOBS,
     },
   },
   cacheOptions: {
+    // What a cache hit restores when a target sets no `outputs`. Without it
+    // lage caches, and restores, the whole package, sources included.
+    outputGlob: BUILD_OUTPUT_GLOBS,
     cacheStorageConfig: {
       provider: 'local',
-      outputGlob: BUILD_OUTPUT_GLOBS,
     },
   },
   npmClient: 'pnpm',
